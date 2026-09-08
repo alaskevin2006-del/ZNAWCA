@@ -42,7 +42,7 @@ describe("补充任务A: wrong-answer feedback shows the correct answer's media 
     fireEvent.change(screen.getByRole("textbox", { name: "Your answer" }), { target: { value: "wrong" } });
     fireEvent.click(screen.getByRole("button", { name: "Check answer" }));
     expect(screen.getByText(/^Not quite$/)).toBeVisible();
-    const feedback = document.querySelector(".feedback")!;
+    const feedback = document.querySelector<HTMLElement>(".feedback")!;
     const thumbnails = within(feedback).getAllByRole("img");
     expect(thumbnails).toHaveLength(1);
     expect(thumbnails[0]!.getAttribute("src")).toContain("cuckoo.jpg");
@@ -75,7 +75,7 @@ describe("补充任务A: wrong-answer feedback shows the correct answer's media 
     expect(submitted).toBe(true);
     // 反馈区渲染的媒体只有既有两处：正确答案媒体 + 「多答」的错误选项媒体；
     // 对象小图预览对媒体答案题不生效（不叠加第三张）。
-    const feedback = document.querySelector(".feedback")!;
+    const feedback = document.querySelector<HTMLElement>(".feedback")!;
     expect(within(feedback).getAllByRole("img")).toHaveLength(2);
   });
 });

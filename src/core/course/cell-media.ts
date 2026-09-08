@@ -26,9 +26,35 @@ export interface CellMediaScanResult {
   readonly issues: readonly CourseIssue[];
 }
 
-export async function scanCellMedia(courseDirectory: string): Promise<CellMediaScanResult> {
+/**
+ * 单元格引用语法判定的类别：
+ * - `{ kind }`：全部 `/` 变体都是同一类受支持媒体（图片/音频/视频）。
+ * - `"text"`：不含任何受支持媒体扩展名，按纯文本答案处理。
+ * - `"mixed"`：同格混入多种媒体类别，或媒体引用与文字混写（D-18 禁止）。
+ *
+ * 该判定只看语法（扩展名），不依赖文件是否真实存在；文件缺失/损坏由 resolve 报 warning。
+ */
+export type CellMediaCategory = { readonly kind: MediaKind } | "text" | "mixed";
+
+export function cellMediaCategory(rawValue: string): CellMediaCategory {
+  const parts = rawValue
+    .trim()
+    .split("/")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+  if (parts.length === 0) return "text";
+  const mediaParts = parts.filter((part) => SUPPORTED_MEDIA_EXTENSIONS[extname(part).toLowerCase()] !== undefined);
+  if (mediaParts.length === 0) return "text";
+  if (mediaParts.length !== parts.length) return "mixed";
+  const kinds = new Set(mediaParts.map((part) => SUPPORTED_MEDIA_EXTENSIONS[extname(part).toLowerCase()]));
+  return kinds.size === 1 ? { kind: [...kinds][0]! } : "mixed";
+}
+
+export async function scanCellMedia(courseDirectory: string, workbookPath?: string): Promise<CellMediaScanResult> {
   const issues: CourseIssue[] = [];
   const mediaDirectory = join(courseDirectory, MEDIA_DIRECTORY);
+  // 单元格级问题定位到工作簿文件（D-14：文件/工作表/行列齐全）；无工作簿上下文时回退 media 目录。
+  const issueFile = workbookPath ?? mediaDirectory;
   const entries = await safeReadDirectory(mediaDirectory, issues);
   const files = entries.filter((entry) => entry.isFile());
 
@@ -41,25 +67,46 @@ export async function scanCellMedia(courseDirectory: string): Promise<CellMediaS
   const resolve: CellMediaResolver = async (rawValue, sheet, row, column, columnName) => {
     const trimmed = rawValue.trim();
     if (!trimmed) return [];
-    const parts = trimmed.split("/").map((part) => part.trim()).filter((part) => part.length > 0);
-    if (parts.length === 0) return [];
+    const category = cellMediaCategory(trimmed);
+    if (category === "text") return [];
 
-    // 只有每个变体都含受支持扩展名时才整体按媒体处理；否则按纯文本答案处理。
-    const allMedia = parts.every((part) => SUPPORTED_MEDIA_EXTENSIONS[extname(part).toLowerCase()] !== undefined);
-    if (!allMedia) return [];
+    // D-18：同一单元格只允许一种媒体类别及其变体；媒体引用与文字混写同样禁止，导入失败。
+    if (category === "mixed") {
+      issues.push(cellIssue(
+        "error",
+        "CELL_MEDIA_MIXED_KIND",
+        "Cell mixes media of different kinds, or a media reference with plain text.",
+        "Use one media kind per cell; put text answers in a different column and separate media variants with '/'.",
+        issueFile,
+        sheet,
+        row,
+        column,
+        columnName,
+      ));
+      return [];
+    }
 
-    // D-18：同一单元格的多个变体必须属于同一媒体类别（图片列内可混用 JPG/PNG/WEBP）。
-    const kinds = new Set(parts.map((part) => SUPPORTED_MEDIA_EXTENSIONS[extname(part).toLowerCase()]));
-    if (kinds.size > 1) {
-      issues.push(cellIssue("CELL_MEDIA_MIXED_KIND", `Cell mixes different media kinds (${[...kinds].join(", ")}).`, "Use one media kind per cell; put other kinds in a different column.", mediaDirectory, sheet, row, column, columnName));
+    // D-18：`/` 只作变体分隔，引用必须是 media/ 中的纯文件名，不得含路径。
+    if (partsOf(trimmed).some((part) => part.includes("\\"))) {
+      issues.push(cellIssue(
+        "error",
+        "CELL_MEDIA_PATH",
+        "Cell references media with a path; only plain file names are allowed.",
+        "Put the file in the media directory and reference it by file name only, e.g. 'flag.png'.",
+        issueFile,
+        sheet,
+        row,
+        column,
+        columnName,
+      ));
       return [];
     }
 
     const assets: MediaAsset[] = [];
-    for (const ref of parts) {
+    for (const ref of partsOf(trimmed)) {
       const path = byName.get(ref.toLowerCase());
       if (!path) {
-        issues.push(cellIssue("CELL_MEDIA_MISSING", `Referenced media file '${ref}' was not found in the media directory.`, "Add the file to the media directory or remove the reference.", mediaDirectory, sheet, row, column, ref));
+        issues.push(cellIssue("warning", "CELL_MEDIA_MISSING", `Referenced media file '${ref}' was not found in the media directory.`, "Add the file to the media directory or remove the reference.", issueFile, sheet, row, column, ref));
         continue;
       }
       const kind = SUPPORTED_MEDIA_EXTENSIONS[extname(ref).toLowerCase()];
@@ -67,7 +114,7 @@ export async function scanCellMedia(courseDirectory: string): Promise<CellMediaS
       if (await hasValidSignature(path, ref)) {
         assets.push({ kind, path, extension: extname(ref).toLowerCase(), source: "cell" });
       } else {
-        issues.push(cellIssue("CELL_MEDIA_CORRUPT", `Referenced media file '${ref}' does not match its declared format.`, "Replace or convert this file.", path, sheet, row, column, ref));
+        issues.push(cellIssue("warning", "CELL_MEDIA_CORRUPT", `Referenced media file '${ref}' does not match its declared format.`, "Replace or convert this file.", path, sheet, row, column, ref));
       }
     }
     return assets;
@@ -79,7 +126,16 @@ export async function scanCellMedia(courseDirectory: string): Promise<CellMediaS
 export function mediaKindOf(value: string): MediaKind | undefined {
   const trimmed = value.trim();
   if (!trimmed) return undefined;
-  return SUPPORTED_MEDIA_EXTENSIONS[extname(trimmed).toLowerCase()];
+  const category = cellMediaCategory(trimmed);
+  return typeof category === "object" ? category.kind : undefined;
+}
+
+function partsOf(rawValue: string): readonly string[] {
+  return rawValue
+    .trim()
+    .split("/")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
 }
 
 async function safeReadDirectory(directory: string, issues: CourseIssue[]): Promise<readonly { isFile(): boolean; name: string }[]> {
@@ -99,6 +155,6 @@ async function safeReadDirectory(directory: string, issues: CourseIssue[]): Prom
   }
 }
 
-function cellIssue(code: string, message: string, suggestion: string, file: string, sheet: string, row: number, column: number, columnName?: string): CourseIssue {
-  return { severity: "warning", code, message, suggestion, location: { file, sheet, row, column, columnName } };
+function cellIssue(severity: "error" | "warning", code: string, message: string, suggestion: string, file: string, sheet: string, row: number, column: number, columnName?: string): CourseIssue {
+  return { severity, code, message, suggestion, location: { file, sheet, row, column, columnName } };
 }

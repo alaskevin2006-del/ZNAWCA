@@ -128,31 +128,52 @@ describe("V2 cell media column consistency (D-18)", () => {
     expect(result.course?.items[1].cellMedia?.["Song"]).toHaveLength(1);
   });
 
-  it("reports COLUMN_MEDIA_MIXED_KIND when a column mixes media kinds across rows", async () => {
+  it("reports COLUMN_MEDIA_MIXED_KIND at the exact offending cell when a column mixes media kinds across rows", async () => {
     await withMedia({ "cuckoo.jpg": JPEG, "call.mp3": MP3 });
     const result = await validate([
       cell(1, 1, "Birds"), cell(1, 2, "Name"), cell(1, 3, "Song"),
       cell(2, 2, "Cuckoo"), cell(2, 3, "cuckoo.jpg"),
       cell(3, 2, "Owl"), cell(3, 3, "call.mp3"),
     ]);
+    expect(result.course).toBeUndefined();
     expect(result.issues).toContainEqual(expect.objectContaining({
       code: "COLUMN_MEDIA_MIXED_KIND",
       severity: "error",
-      location: expect.objectContaining({ column: 3, columnName: "Song" }),
+      location: expect.objectContaining({ row: 3, column: 3, columnName: "Song" }),
     }));
   });
 
-  it("reports COLUMN_MEDIA_MIXED_KIND when a column mixes media with text answers", async () => {
+  it("reports COLUMN_MEDIA_MIXED_KIND at the exact cell mixing media with a text answer", async () => {
     await withMedia({ "cuckoo.jpg": JPEG });
     const result = await validate([
       cell(1, 1, "Birds"), cell(1, 2, "Name"), cell(1, 3, "Song"),
       cell(2, 2, "Cuckoo"), cell(2, 3, "cuckoo.jpg"),
       cell(3, 2, "Gull"), cell(3, 3, "loud squawking"),
     ]);
+    expect(result.course).toBeUndefined();
     expect(result.issues).toContainEqual(expect.objectContaining({
       code: "COLUMN_MEDIA_MIXED_KIND",
       severity: "error",
-      location: expect.objectContaining({ column: 3, columnName: "Song" }),
+      location: expect.objectContaining({ row: 3, column: 3, columnName: "Song" }),
     }));
+  });
+
+  it("keeps a missing media file a media cell (warning only) instead of falling back to a text answer", async () => {
+    await withMedia({ "cuckoo.jpg": JPEG });
+    const result = await validate([
+      cell(1, 1, "Birds"), cell(1, 2, "Name"), cell(1, 3, "Song"),
+      cell(2, 2, "Cuckoo"), cell(2, 3, "cuckoo.jpg"),
+      cell(3, 2, "Owl"), cell(3, 3, "owl-song.jpg"),
+    ]);
+    expect(result.course).toBeDefined();
+    expect(result.issues).toContainEqual(expect.objectContaining({
+      code: "CELL_MEDIA_MISSING",
+      severity: "warning",
+      location: expect.objectContaining({ row: 3, column: 3 }),
+    }));
+    // 缺失媒体的单元格不回退成文字答案，列类别保持一致，不产生 COLUMN_MEDIA_MIXED_KIND。
+    expect(result.issues.filter((issue) => issue.code === "COLUMN_MEDIA_MIXED_KIND")).toEqual([]);
+    expect(result.course?.items[1]?.values["Song"]).toEqual([]);
+    expect(result.course?.items[1]?.cellMedia?.["Song"]).toEqual([]);
   });
 });

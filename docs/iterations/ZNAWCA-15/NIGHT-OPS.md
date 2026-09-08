@@ -111,6 +111,31 @@
 
 ## 6. 状态板（每次操作后更新，最新在上）
 
+### 2026-09-09 06:25 终验收（06:20 定时）：独立验收通过，三门禁复跑全绿，晨报产出
+- **角色**：验收 GPT（独立于实施工人与检查员），按 §5.6 步骤 ①~⑥ 执行。
+- **基线核对**：HEAD `6c4b79f`（branch `znawca15-trunk`），自 05:41 主控终检以来无代码改动；终验收仅写 `ACCEPTANCE.md` + `MORNING-REPORT-2026-09-09.md` + 本状态板，未产生新代码提交。`git status` clean。
+- **§5.6 步骤 ① 自动验收逐项核对**：D-10~D-25 共 16 项决策 + 4 项补充/误报修复（答错小图、D-19 导入侧接线、`~$` 锁文件排除、合并单元格传播）= 20 项，全部 Read/Grep 核对代码与测试真实存在且断言有效（不信文档自述）。证据见 `ACCEPTANCE.md` §2。
+- **§5.6 步骤 ② 两个误报修复**：构造测试已在仓库中（`loader.test.ts` `ignores an Excel lock file when detecting workbooks`+`does not report ITEM_NAME_EMPTY for a merged A-column cell`+`xlsx.test.ts` `propagates a merged A-column value`），无需临时构造——三个测试均为 38 文件 254 项内已绿项。
+- **§5.6 步骤 ③ 三门禁全量复跑**（06:21~06:24，验收时点）：
+  - `npm run typecheck` ✅（两端 `--noEmit`，退出码 0）
+  - `npm test -- --run` ✅ **38 文件 254 项**全过（Duration 7.79s）
+  - `npx vite build && npx tsc -p tsconfig.main.json` ✅（vite 38 modules transformed，`dist/renderer/{index.html,index.css,index.js}`；main 端 tsc 无输出，86 文件 dist）
+- **§5.6 步骤 ④ 验收结论**：
+  - 全部 20 项**通过**，无「不通过」/「阻塞」项。
+  - 未发现：DECISIONS §4 排除项被实现（Web/账户/付费/后台/AI 出题/Anvil/属性间横向出题/自动同义词/阿俄文案均未触碰）、测试被削弱、无关文件被大范围改写。
+  - 所有错误码（`MEDIA_MISSING`/`MEDIA_CORRUPT`/`CELL_MEDIA_MIXED_KIND`/`CELL_MEDIA_PATH`/`COLUMN_MEDIA_MIXED_KIND`/`HEADER_BIDIRECTIONAL_MISSING`/`HEADER_BIDIRECTIONAL_SIDE_EMPTY`/`WORKBOOK_AMBIGUOUS`/`ITEM_NAME_EMPTY`）均在测试中真实断言。
+- **§5.6 步骤 ⑤ 晨报产出**：`docs/iterations/ZNAWCA-15/MORNING-REPORT-2026-09-09.md` 已写完，包含：
+  - 完成清单（决策 ID 级，16 决策 + 4 补充/误报修复）
+  - 未完成清单：S5 阿/俄文案（DECISIONS §4 明确排除）、波兰语两条措辞待客户确认
+  - 遗留风险：5 项（均在 CHANGELOG 已记录）
+  - 波兰语两条待客户确认文案：`setupCopy.pl.sample = "Inteligentnie dobrany zestaw pytań"`、`setupCopy.pl.fullCoverage = "Suma obecnych projeków"`（位于 `src/renderer/app-shell/AppShell.tsx:719`）
+  - 主控晨间建议：
+    - **A. 旧自动化 `automation-1788199402860`「ZNAWCA 修复项落地检查」**：建议恢复。检查点（合并单元格/缺失媒体/2×2 紧凑）已被本批验收测试覆盖，与 V2 解冻无冲突。
+    - **B. `ZNAWCA-night/{s1,s2,s3}` worktree 目录**：建议保留 7 天（至 2026-09-16）后视情况清理；代码已全部合并入 trunk，本批 worktree 不含独有改动，但短期保留可作回滚参考。
+- **§5.6 步骤 ⑥ ACCEPTANCE.md 更新**：按现有格式逐项「通过/不通过+证据」填写完毕，不粉饰；所有断言精确到测试名/行号。
+- **硬约束遵守**：未 git push；未改 `DECISIONS.md`/`WORKBUDDY-TASKS.md`；未触碰其他 worktree；未删除/移动任何文件。
+- 下一步：07:00 用户起床看晨报；主控按 §5 晨报建议决定 05:00 旧自动化恢复 + worktree 清理时机；如客户回复波兰语文案，按反馈最小修改 `AppShell.tsx:719`。
+
 ### 2026-09-09 05:41 主控终检（05:40 定时）：三门禁全绿复跑，状态板更新，无缺口
 - 主干 `znawca15-trunk`：当前 HEAD `6c4b79f`（检查员③ 状态板更新）——本次终检**只更新本状态板**，不动代码，因此不产生新提交；待 06:20 终验收前若代码变动才会再 commit。
 - **§5.5 步骤 ① s3 合并确认**：合并已完成（`d458d0d` merge S3 → trunk）。`znawca15-trunk..znawca15-audio-progress` 为空（s3 无超出主干的新提交）；`znawca15-audio-progress..znawca15-trunk` 仅含 2 个提交（`2150b8a` vitest globals:true 补丁 + `6c4b79f` 状态板更新）——属于检验员③ 的独立维护，s3 不需要重新同步。CHANGELOG 冲突拼接在 `d458d0d` 完成，无遗失。

@@ -3,7 +3,7 @@ import { basename, extname, join } from "node:path";
 import { scanFeedbackSounds } from "./feedback-sounds.js";
 import { parseLanguageWorkbookName } from "./language.js";
 import { normalizeKey } from "./normalization.js";
-import { scanCourseMedia } from "./media.js";
+import { scanCourseMedia, listSpeechAudioFiles } from "./media.js";
 import type { CourseIssue, CourseLoadReport } from "./types.js";
 import { bidirectionalHeaderIssues } from "../quiz/course-adapter.js";
 import { validateWorksheet } from "./validation.js";
@@ -97,7 +97,9 @@ async function loadWorkbookAsCourse(
       // 课程导入 issues，使 canOpen=false；quiz 层的 BidirectionalHeaderError 仍是兜底。
       if (validated.course) issues.push(...bidirectionalHeaderIssues(validated.course));
       if (!validated.course) return { issues, canOpen: false };
-      return { course: { ...validated.course, feedbackSounds }, issues, canOpen: !issues.some((entry) => entry.severity === "error") };
+      // D-22：扫描该语言的 speech/<lang>/ 朗读目录；缺失时得到空列表（静默跳过，不启用 TTS）。
+      const speechFiles = await listSpeechAudioFiles(validated.course.speechDirectory!);
+      return { course: { ...validated.course, feedbackSounds, speechFiles }, issues, canOpen: !issues.some((entry) => entry.severity === "error") };
     }
     const itemNames = worksheet.cells
       .filter((cell) => cell.column === 1 && cell.row > 1 && cell.value.trim())

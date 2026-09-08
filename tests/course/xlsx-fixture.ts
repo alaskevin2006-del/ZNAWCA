@@ -84,6 +84,9 @@ export async function writeWorkbookRows(
 export const PNG_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
 export const JPEG_BYTES = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
 export const MP3_BYTES = Buffer.from("ID3", "utf8");
+/** D-22：不同语言的同坐标朗读录音内容不同，便于断言「播各自录音」。 */
+export const MP3_ENG_BYTES = Buffer.from("ID3-eng", "utf8");
+export const MP3_RU_BYTES = Buffer.from("ID3-ru", "utf8");
 
 const v2EngRows = [
   ["Birds of Europe", "Name / Bird", "Diet / Food"],
@@ -128,8 +131,18 @@ export async function createMultilingualCourseFixture(parent: string): Promise<{
   }
   await mkdir(join(directory, "speech", "Eng"), { recursive: true });
   await mkdir(join(directory, "speech", "Ru"), { recursive: true });
-  await writeFile(join(directory, "speech", "Eng", "B2.mp3"), MP3_BYTES);
-  await writeFile(join(directory, "speech", "Ru", "B2.mp3"), MP3_BYTES);
+  // D-22 坐标样例：名称单元格 B2、属性单元格 C2、双向标题 C1-F/C1-R；
+  // Eng/Ru 各自录音（内容不同），同坐标互不串台。
+  const speechFiles: Record<string, Buffer> = {
+    "B2.mp3": MP3_ENG_BYTES,
+    "C2.mp3": MP3_ENG_BYTES,
+    "C1-F.mp3": MP3_ENG_BYTES,
+    "C1-R.mp3": MP3_ENG_BYTES,
+  };
+  for (const [name, bytes] of Object.entries(speechFiles)) {
+    await writeFile(join(directory, "speech", "Eng", name), bytes);
+    await writeFile(join(directory, "speech", "Ru", name), bytes.equals(MP3_ENG_BYTES) ? MP3_RU_BYTES : bytes);
+  }
   return { directory, mediaDirectory, engWorkbook, ruWorkbook };
 }
 

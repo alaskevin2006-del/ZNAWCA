@@ -128,6 +128,10 @@ function withMediaUrls(report: CourseLoadReport): CourseLoadReport {
             incorrect: report.course.feedbackSounds.incorrect.map(mediaUrl),
           }
         : undefined,
+      // D-22：把 speech/<lang>/ 坐标文件名转换为可直接播放的 znawca-media:// URL。
+      speech: report.course.speechFiles && report.course.speechDirectory
+        ? report.course.speechFiles.map((file) => ({ file, url: mediaUrl(path.join(report.course.speechDirectory!, file)) }))
+        : undefined,
     },
   };
 }

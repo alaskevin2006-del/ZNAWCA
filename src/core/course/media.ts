@@ -117,6 +117,23 @@ function directoryFor(kind: MediaKind): string {
   return kind === "image" ? "images" : kind === "audio" ? "audio" : "videos";
 }
 
+/**
+ * D-22：扫描分语言朗读目录 `speech/<lang>/` 内的音频文件（坐标命名，如 `C4.mp3`、
+ * `C1-F.mp3`）。目录缺失或不可读时静默返回空列表——没有朗读文件就不启用任何 TTS。
+ */
+export async function listSpeechAudioFiles(speechDirectory: string): Promise<string[]> {
+  let entries;
+  try {
+    entries = await readdir(speechDirectory, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  return entries
+    .filter((entry) => entry.isFile() && EXTENSIONS[extname(entry.name).toLowerCase()] === "audio")
+    .map((entry) => entry.name)
+    .sort((left, right) => left.localeCompare(right));
+}
+
 export async function hasValidSignature(file: string, name: string): Promise<boolean> {
   let bytes: Buffer;
   try {

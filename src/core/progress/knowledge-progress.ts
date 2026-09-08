@@ -38,6 +38,31 @@ export function projectIdForQuestion(question: Question): string {
   return mediaKind ? `media:${mediaKind}` : "object";
 }
 
+/**
+ * D-24：一个「名称＋学习单元格」关系的稳定单位键。
+ * 同一对象的同一学习单元格（属性列或 A 列媒体类别）共享一个键：
+ * 正反向、input/choice 题型、`/` 媒体变体全部归并为一个进度单位。
+ */
+export function progressUnitKey(question: Question): string {
+  return `${question.objectId}\u0000${projectIdForQuestion(question)}`;
+}
+
+/** D-24：会话进度统计（总数在开始时固定，已完成＝达到移除/作答条件的单位数）。 */
+export interface ProgressUnitCounts {
+  readonly total: number;
+  readonly completed: number;
+  readonly remaining: number;
+}
+
+/**
+ * D-24：一组题目覆盖的进度单位总数。
+ * 只统计真实生成的题目——空单元格（MISSING_ANSWER）、缺失/损坏媒体（MISSING_MEDIA）
+ * 与无区分度列（skippedFields）在出题阶段已被跳过，天然不进入这里；重试不改变总数。
+ */
+export function progressUnitTotal(questions: readonly Question[]): number {
+  return new Set(questions.map(progressUnitKey)).size;
+}
+
 export function projectLabel(projectId: string): string {
   if (projectId.startsWith("field:")) return projectId.slice("field:".length);
   if (projectId.startsWith("media:")) {

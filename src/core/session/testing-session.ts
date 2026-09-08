@@ -1,4 +1,5 @@
 import type { AnswerEvaluation, Question } from "../quiz/types.js";
+import { progressUnitKey, progressUnitTotal, type ProgressUnitCounts } from "../progress/knowledge-progress.js";
 
 export type PerQuestionTimerSeconds = 0 | 10 | 15 | 20;
 
@@ -38,9 +39,12 @@ export class TestingSession {
   private index = 0;
   private startedAt?: number;
   private records: TestAnswerRecord[] = [];
+  /** D-24：本卷覆盖的进度单位总数，构造时固定（正反向/题型/变体合并计数）。 */
+  private readonly unitTotal: number;
 
   constructor(private readonly questions: readonly Question[], readonly timerSeconds: PerQuestionTimerSeconds) {
     if (![0, 10, 15, 20].includes(timerSeconds)) throw new RangeError("Timer must be disabled or set to 10, 15, or 20 seconds.");
+    this.unitTotal = progressUnitTotal(questions);
   }
 
   current(nowMs: number): Question | undefined {
@@ -88,6 +92,16 @@ export class TestingSession {
 
   isComplete(): boolean {
     return this.index >= this.questions.length;
+  }
+
+  /**
+   * D-24：Testing 进度统计。总数＝本卷覆盖的进度单位（开始时固定）；
+   * 已完成＝已作答题目覆盖的单位数（同一单位的正反向/多题型只算一次）；
+   * 剩余＝总数－已完成。
+   */
+  progressUnits(): ProgressUnitCounts {
+    const completed = new Set(this.records.map((record) => progressUnitKey(record.question))).size;
+    return { total: this.unitTotal, completed, remaining: Math.max(0, this.unitTotal - completed) };
   }
 
   summary(): TestSummary {

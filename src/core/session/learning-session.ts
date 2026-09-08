@@ -1,4 +1,5 @@
 import type { AnswerEvaluation, Question } from "../quiz/types.js";
+import { progressUnitKey, progressUnitTotal, type ProgressUnitCounts } from "../progress/knowledge-progress.js";
 
 export interface LearningQuestionProgress {
   readonly question: Question;
@@ -19,20 +20,35 @@ export interface LearningSnapshot {
   readonly queue: readonly LearningQuestionProgress[];
   readonly completedQuestionIds: readonly string[];
   readonly records?: readonly LearningAnswerRecord[];
+  /** D-24：进度单位总数，Learning 开始时固定（重试不增）。旧快照缺省时按题目重算。 */
+  readonly unitTotal?: number;
 }
 
 export class LearningSession {
   private queue: LearningQuestionProgress[];
   private completed = new Set<string>();
   private records: LearningAnswerRecord[] = [];
+  /** D-24：进度单位总数——构造时固定，重答/重试不改变。 */
+  private readonly unitTotal: number;
+  /** D-24：已达到移除条件（完成）的进度单位键。 */
+  private readonly completedUnits = new Set<string>();
 
   constructor(questionsOrSnapshot: readonly Question[] | LearningSnapshot) {
     if (!isSnapshot(questionsOrSnapshot)) {
       this.queue = questionsOrSnapshot.map((question) => ({ question, requiredStreak: 1, correctStreak: 0, attempts: 0 }));
+      this.unitTotal = progressUnitTotal(questionsOrSnapshot);
     } else {
       this.queue = questionsOrSnapshot.queue.map((progress) => ({ ...progress }));
       this.completed = new Set(questionsOrSnapshot.completedQuestionIds);
       this.records = [...(questionsOrSnapshot.records ?? [])];
+      // 旧快照（D-24 之前保存）没有 unitTotal：用队列与全部历史记录中的题目重算，
+      // 覆盖「初始题目集合」的近似值；新快照直接沿用开始时固定的总数。
+      this.unitTotal = questionsOrSnapshot.unitTotal
+        ?? progressUnitTotal([...this.queue.map((progress) => progress.question), ...this.records.map((record) => record.question)]);
+      const completedIds = this.completed;
+      for (const record of this.records) {
+        if (completedIds.has(record.questionId)) this.completedUnits.add(progressUnitKey(record.question));
+      }
     }
   }
 
@@ -63,7 +79,12 @@ export class LearningSession {
       return updated;
     }
     const streak = progress.correctStreak + 1;
-    if (streak >= progress.requiredStreak) this.completed.add(questionId);
+    if (streak >= progress.requiredStreak) {
+      this.completed.add(questionId);
+      // D-24：题目达到移除条件 → 其「名称＋学习单元格」单位计为已掌握（Set 去重，
+      // 正反向/题型/变体的另一道题完成时不会重复累计）。
+      this.completedUnits.add(progressUnitKey(progress.question));
+    }
     else this.queue.push({ ...progress, correctStreak: streak, attempts });
     return { ...progress, correctStreak: streak, attempts };
   }
@@ -72,11 +93,24 @@ export class LearningSession {
     return this.queue.length === 0;
   }
 
+  /**
+   * D-24：Learning 进度统计。总数在开始时固定；已完成＝达到移除条件的单位数；
+   * 剩余＝总数－已完成。重试（答错重入队）只影响 completed，不改变 total。
+   */
+  progressUnits(): ProgressUnitCounts {
+    return {
+      total: this.unitTotal,
+      completed: this.completedUnits.size,
+      remaining: Math.max(0, this.unitTotal - this.completedUnits.size),
+    };
+  }
+
   snapshot(): LearningSnapshot {
     return {
       queue: this.queue.map((progress) => ({ ...progress })),
       completedQuestionIds: [...this.completed],
       records: [...this.records],
+      unitTotal: this.unitTotal,
     };
   }
 }

@@ -1,4 +1,5 @@
 import type { FilterSelection, Question, TeachingStyle } from "../quiz/types.js";
+import type { ProgressUnitCounts } from "../progress/knowledge-progress.js";
 import type { LearningAnswerRecord, LearningSnapshot } from "./learning-session.js";
 import { LearningSession } from "./learning-session.js";
 import type { PerQuestionTimerSeconds, TestAnswerRecord, TestSummary, TestSubmission } from "./testing-session.js";
@@ -81,6 +82,9 @@ export class LearningSessionController {
 
   isComplete(): boolean { return this.session.isComplete(); }
 
+  /** D-24：Learning 进度单位统计（总数开始时固定，重试不增）。 */
+  progressUnits(): ProgressUnitCounts { return this.session.progressUnits(); }
+
   records(): readonly LearningAnswerRecord[] { return this.session.snapshot().records ?? []; }
 
   save(savedAt = new Date().toISOString()): LearningSessionRecord {
@@ -129,6 +133,9 @@ export class TestingSessionController {
   expire(nowMs: number): TestAnswerRecord | undefined { return this.session.expire(nowMs); }
   isComplete(): boolean { return this.session.isComplete(); }
   summary(): TestSummary { return this.session.summary(); }
+
+  /** D-24：Testing 进度单位统计（总数/已完成/剩余）。 */
+  progressUnits(): ProgressUnitCounts { return this.session.progressUnits(); }
 
   history(completedAt = new Date().toISOString()): TestHistoryRecord {
     if (!this.session.isComplete()) throw new Error("Cannot create test history before the test is complete.");

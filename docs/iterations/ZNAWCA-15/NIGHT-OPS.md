@@ -111,6 +111,18 @@
 
 ## 6. 状态板（每次操作后更新，最新在上）
 
+### 2026-09-09 04:55 检查员③：D-25 整改 + vitest 4.x 修复，三门禁全绿
+- 主干 `znawca15-trunk`：`2150b8a`（vitest globals 修复）← `d458d0d`（merge S3 含 D-25）← `a331600`（D-25 + vitest pool 修复，在 S3 worktree 提交）。
+- **D-25 视频选项 2×2**：原代码 `isMediaGridOptions` 明确排除 video（注释写「本轮排除」），D-25 决策要求视频与图片/音频同等 2×2 布局——属允许范围（AppShell.tsx + choices.css 在 S3 允许修改列表）。修复：加入 `option.media?.kind === "video"`、choices.css 视频收窄规则、测试从「不标记视频」改为「标记视频」。提交 `a331600`。
+- **vitest 4.x setup 文件 bug**：`tests/setup.ts` 导入 `afterEach` from "vitest" + `@testing-library/jest-dom/vitest` 导入 `expect` from "vitest"，在默认 pool 下崩溃（"Vitest failed to find the current suite"）。根因：vitest 4.x 的 threads/forks pool 不在 setup 文件上下文中初始化 vitest 模块。修复：`vitest.config.ts` 加 `pool: "vmThreads"`（vm 上下文正确初始化）+ `globals: true`（全局 `afterEach`/`expect` 可用于 setup 文件），全量 38 文件 254 项全通过。
+- **D-19 导入侧接线**：已确认完成——`loader.ts` 调用 `bidirectionalHeaderIssues`（`course-adapter.ts` 导出），非法 V2 双向表头导入时 `canOpen=false`。提交 `7775984`（S3 工人）。
+- 三门禁：`npx tsc -p tsconfig.json --noEmit && npx tsc -p tsconfig.main.json --noEmit` ✅；`npm test -- --run` 38 文件 254 项 ✅；`npx vite build && npx tsc -p tsconfig.main.json` ✅（38 modules，绕过 clean）。
+- 各分支状态：S1 ✅ 已合并、S2 ✅ 已合并、S3+S4 ✅ 已合并（含 D-25 整改 + vitest 修复）、S0 ✅ 已满足。
+- 全部决策 D-10~D-25 状态：已修改/已满足。D-10~D-14（S0）已满足、D-15~D-18（S1）已修改、D-19~D-21（S2）已修改、D-22~D-24（S3+S4）已修改、D-25（检查员③）已修改。
+- 遗留待确认：波兰语两条文案（`Inteligentnie dobrany zestaw pytań`、`Suma obecnych projeków`）措辞未按客户指定——按 §4 待客户确认，不擅改。
+- 未 git push（按硬约束）；未改 `DECISIONS.md`/`WORKBUDDY-TASKS.md`/`ACCEPTANCE.md`（按硬约束）。
+- 下一步：05:40 主控终检；06:20 终验收 + 晨报。
+
 ### 2026-09-09 03:42 主控巡检：S3+S4 完成并合并入主干，三门禁全绿
 - 主干 `znawca15-trunk`：`aaefff3`（merge S3+S4 `aaefff3`，fast-forward）。`npm run typecheck` ✅；`npm test -- --run` 36 文件 250 项 ✅；`npx vite build && npx tsc -p tsconfig.main.json` ✅（绕过 clean，见 §1 沙箱限制）。
 - `znawca15-v2-model`：S1 完成并已合并（`6338337`/`4bef11e`/`74105f0`）。

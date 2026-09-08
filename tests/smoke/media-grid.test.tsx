@@ -105,14 +105,18 @@ describe("D-11 media choice grid", () => {
     expect(fieldset.querySelectorAll("img, audio, video")).toHaveLength(0);
   });
 
-  it("does not mark video options in this round", async () => {
+  it("marks four video options with the media grid (D-25)", async () => {
     installSmokeCourse(defaultLocalState(), mediaCourse);
     await beginChoiceSession(mediaCourse, "Name to video");
     expect(screen.getByText("Question 1 of 4")).toBeVisible();
     const fieldset = screen.getByRole("group", { name: "Your answer" });
-    expect(fieldset.className).not.toContain("media-grid");
+    expect(fieldset.className).toContain("media-grid");
     expect(fieldset.querySelectorAll("video")).toHaveLength(4);
-    expect(within(fieldset).getAllByRole("radio")).toHaveLength(4);
+    expect(document.querySelector(".question-card")?.className).toContain("media-grid-card");
+    const radios = within(fieldset).getAllByRole("radio");
+    expect(radios).toHaveLength(4);
+    fireEvent.click(radios[1]);
+    expect(radios[1]).toBeChecked();
   });
 
   it("compresses media options and the question card for the 960×640 minimum window", () => {
@@ -122,6 +126,11 @@ describe("D-11 media choice grid", () => {
     const imgHeight = choicesCss.match(/\.choice-list\.media-grid \.question-media img\s*\{[^}]*max-height:\s*(\d+)px/);
     expect(imgHeight).not.toBeNull();
     expect(Number(imgHeight![1])).toBeLessThanOrEqual(130);
+
+    // D-25：视频选项在 2×2 网格内同样收窄
+    const videoHeight = choicesCss.match(/\.choice-list\.media-grid \.question-media video\s*\{[^}]*max-height:\s*(\d+)px/);
+    expect(videoHeight).not.toBeNull();
+    expect(Number(videoHeight![1])).toBeLessThanOrEqual(130);
 
     const shellCss = readFileSync(resolve(process.cwd(), "src/renderer/app-shell/app-shell.css"), "utf8");
     expect(shellCss).toMatch(/\.question-card\{padding:1[0-9]px 20px;margin-top:8px\}/);

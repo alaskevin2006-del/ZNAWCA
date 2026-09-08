@@ -845,8 +845,8 @@ function questionLimitFor(available: number, requested: number): number {
   return Math.min(available, Math.max(minimum, requested));
 }
 
-// D-11：仅当选择题为纯图片/音频选项且为 3 或 4 项时启用媒体 2×2 网格标记。
-// 文字选择题、视频选项（本轮排除）不适用；判定只依赖选项媒体类型与数量，
+// D-11/D-25：选择题为纯图片/音频/视频选项且为 3 或 4 项时启用媒体 2×2 网格标记。
+// 文字选择题不适用；判定只依赖选项媒体类型与数量，
 // 不改变答案数据顺序。
 function isMediaGridOptions(question: Question): boolean {
   return (
@@ -854,7 +854,7 @@ function isMediaGridOptions(question: Question): boolean {
     question.options !== undefined &&
     question.options.length >= 3 &&
     question.options.length <= 4 &&
-    question.options.every((option) => option.media?.kind === "image" || option.media?.kind === "audio")
+    question.options.every((option) => option.media?.kind === "image" || option.media?.kind === "audio" || option.media?.kind === "video")
   );
 }
 

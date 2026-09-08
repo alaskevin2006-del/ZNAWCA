@@ -1,0 +1,24 @@
+.filter-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid rgba(209, 175, 89, 0.3);
+}
+
+.filter-group legend {
+  padding: 0 6px;
+  color: #e9d99f;
+  font-size: 0.78rem;
+}
+
+.filter-group label,
+.filter-empty {
+  color: #cbd3ca;
+  font-size: 0.75rem;
+}
+
+.filter-group input {
+  accent-color: #c6a24b;
+}

@@ -1,0 +1,17 @@
+.course-errors {
+  margin: 0 0 22px;
+  padding: 16px 20px;
+  border: 1px solid #b97958;
+  border-left: 4px solid #d29372;
+  background: rgba(100, 38, 24, 0.28);
+}
+
+.course-errors strong {
+  color: #f0d990;
+}
+
+.course-errors p {
+  margin: 7px 0 0;
+  color: #e6d8cc;
+  font-size: 0.78rem;
+}

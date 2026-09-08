@@ -6,9 +6,9 @@
   border: 0;
 }
 
-/* D-11：纯图片/音频选项固定 2×2。4 项为两列两行；3 项仍为两列，
+/* D-11/D-25：纯图片/音频/视频选项固定 2×2。4 项为两列两行；3 项仍为两列，
    最后一项单独占位且不跨列拉伸（grid 自动排列，不改 DOM/数据顺序）。
-   文字选择题与视频选项不使用本规则。 */
+   文字选择题不使用本规则。 */
 .choice-list.media-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -24,6 +24,11 @@
 
 .choice-list.media-grid .question-media audio {
   margin: 4px 12px;
+}
+
+/* D-25：视频选项在 2×2 网格内收窄，与图片同等紧凑约束 */
+.choice-list.media-grid .question-media video {
+  max-height: 80px;
 }
 
 .choice-list legend {
@@ -91,6 +96,16 @@
 
 .choice-list .speech-button {
   margin-left: auto;
+}
+
+/* D-24：Testing 头部的进度单位三值（已完成 / 总数 · 剩余）。 */
+.unit-progress {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: #e9d99f;
+  opacity: 0.9;
 }
 
 

@@ -16,6 +16,7 @@
 - 原 18 个 `codex/*` 坏引用已删除，`packed-refs` 备份在 `.git/refs-backup-20260908/`。
 - 各 worktree 的 `node_modules` 是指向主库的 junction，直接可用。
 - vitest **不支持** `--reporter=basic`；定向测试用 `npx vitest run <文件>`，全量用 `npm test -- --run`。
+- **沙箱限制（重要）**：`npm run build` 内的 clean 步骤（`rmSync('dist')` 超 50 文件）会被 WorkBuddy 沙箱 safe-delete 防护拦截，报 `SAFE_DELETE_BULK_REJECTED`——这不是代码问题。构建请改用：`npx vite build && npx tsc -p tsconfig.main.json`（已验证可产出完整 dist，80 文件）。node_modules 内的 `.vite-temp` 垃圾同理勿批量删。
 - 主库 05:00 旧自动化「ZNAWCA 修复项落地检查」今晚已暂停（其硬约束与 V2 解冻冲突），晨间由主控决定是否恢复。
 
 ## 2. 全员硬约束（每个角色开工前必读）
@@ -40,6 +41,8 @@
 | 05:40 | 主控终检 | 合并 s3 → trunk；全量门禁；纠偏 |
 | 06:25 | 终验收 | 独立验收 + 晨报 `MORNING-REPORT-2026-09-09.md` |
 | 07:00 | — | 用户起床看晨报 |
+
+**计划变更（主控 02:50）**：S1/S2 工人实际于 00:15–02:35 完成，主控已现场合并入主干（`7de853a`）并跑全量三门禁（typecheck ✅ / 32 文件 229 项 ✅ / build ✅）；S3+S4 由主控于 03:00 前直接启动，不再等 03:40。原 01:15/02:45 检查任务已过期作废，生效的定时任务为：03:40 主控巡检、04:45 检查③、05:40 主控终检、06:20 终验收+晨报。
 
 ## 4. 主控补充授权与待确认项
 
@@ -107,6 +110,14 @@
 5. `ACCEPTANCE.md` 按现有格式逐项写「通过/不通过+证据」，不粉饰。
 
 ## 6. 状态板（每次操作后更新，最新在上）
+
+### 2026-09-09 02:58 主控：S1+S2 合并入主干，三门禁全绿，启动 S3+S4
+- 主干 `znawca15-trunk`：`7de853a`（merge S1 `5c07d07` + merge S2）。typecheck ✅；`npm test -- --run` 32 文件 229 项 ✅；build ✅（绕过 clean，见 §1 沙箱限制）。
+- `znawca15-v2-model`：S1 完成（`6338337`/`4bef11e`/`74105f0`，已合并）。
+- `znawca15-quiz-rules`：S2 完成（`5512ae7`/`52941f5`/`c3386a8`/`66dd876`/`9166437`，已合并）。
+- `znawca15-audio-progress`：S3+S4 工人即将启动（03:00 前）。
+- 主控已暂停旧自动化「ZNAWCA 修复项落地检查」（05:00，其硬约束与 V2 解冻冲突），晨间由主控决定恢复。
+- 遗留接线项：D-19 导入侧（`bidirectionalHeaderIssues` 已在 quiz 层阻断导入，loader/validation-v2 接线一行事）——划给 S3 工人顺带完成（loader.ts 在其允许范围内）。
 
 ### 2026-09-09 00:15 主控：流水线启动
 - 基线 `a674004` 已提交；四分支与三 worktree 就绪；node_modules junction 验证通过；s2 冒烟测试 3/3 通过；主库 typecheck 绿（全量测试进行中）。

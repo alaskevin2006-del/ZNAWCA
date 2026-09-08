@@ -70,7 +70,7 @@ export interface Course {
   readonly languageCode?: string;
   /** V2：该内容语言的朗读音频目录 `speech/<lang>/`（D-16/D-22，S3 负责播放）。 */
   readonly speechDirectory?: string;
-  /** D-22：`speechDirectory` 内实际存在的朗读音频文件名（坐标命名，如 `C4.mp3`、`C1-F.mp3`）。loader 侧扫描结果。 */
+  /** D-22：`speechDirectory` 内实际存在的朗读音频文件名（坐标命名，如 `C4.mp3`、`C1-F.mp3`）。validation-v2 侧扫描结果。 */
   readonly speechFiles?: readonly string[];
   /** D-22：renderer 消费用的朗读音频（file＝坐标文件名，url＝可直接播放的 `znawca-media://` URL）。由主进程 withMediaUrls 转换。 */
   readonly speech?: readonly SpeechAudioAsset[];

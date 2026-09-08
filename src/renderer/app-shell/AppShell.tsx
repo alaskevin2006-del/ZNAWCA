@@ -15,6 +15,7 @@ import {
   type LocalState,
 } from "../../core/persistence";
 import { filterOptions, filteredCourseObjects } from "../../core/quiz/course-adapter";
+import { speechAudioForOption, speechAudioForQuestion } from "../../core/course/speech-audio";
 import { buildCourseQuestionSet, type CourseQuestionSet } from "../../core/quiz/question-set";
 import { evaluateAnswer } from "../../core/quiz/scoring";
 import { mathRandomSource } from "../../core/quiz/types";
@@ -125,6 +126,22 @@ export function AppShell() {
   useEffect(() => {
     playbackRef.current?.setVolume(playerVolume);
   }, [playerVolume]);
+  // D-22/D-23：当前文字题的问题单元格朗读链（题目本身是媒体时为空链）。
+  const questionSpeech = useMemo(
+    () => (question && activeCourse ? speechAudioForQuestion(activeCourse, question) : []),
+    [question, activeCourse],
+  );
+  useEffect(() => {
+    // D-23：新文字题出现时自动播放问题单元格音频；题目本身是媒体时不播，
+    // 播放不阻断判题、计分、保存和下一题（submit/next 已各自 cancel）。
+    if (!question || feedback) return;
+    if (questionSpeech.length === 0) return;
+    playbackRef.current?.play(questionSpeech);
+  }, [question, feedback, questionSpeech]);
+  const playSpeech = (urls: readonly string[]): void => {
+    // 手动扬声器按钮：只播放，不提交答案、不改变会话状态。
+    if (urls.length > 0) playbackRef.current?.play([...urls]);
+  };
   useEffect(() => {
     // D-12/D-13：提交/超时产生 feedback 后，串行播放“正误提示音 → 正确答案音频”。
     if (!feedback || !question || !activeCourse) return;
@@ -530,7 +547,7 @@ export function AppShell() {
           persistSettings({ recentCourseId: selected.id });
         }} />}
         {screen === "setup" && activeCourse && <Setup locale={locale} course={courseTitle} courseData={activeCourse} filters={filters} setFilters={setFilters} kinds={kinds} setKinds={changeKinds} directions={directions} setDirections={changeDirections} coverageMode={coverageMode} setCoverageMode={changeCoverageMode} questionLimit={questionLimit} setQuestionLimit={changeQuestionLimit} mode={mode} setMode={changeMode} timer={timer} setTimer={changeTimer} strict={strict} setStrict={changeStrict} questionSet={questionSet} capabilitySet={capabilitySet} progress={localState.knowledgeProgress.filter((record) => record.courseId === activeCourse.id)} onStart={start} />}
-        {screen === "session" && question && <Session locale={locale} question={question} course={courseTitle} mode={mode} timer={timer} volume={playerVolume} onVolume={changePlayerVolume} position={position} total={sessionTotal} answer={answer} setAnswer={setAnswer} feedback={feedback} needsAnother={needsAnother} onSubmit={submit} onTimeout={timeout} onSaveExit={saveAndExit} onNext={next} />}
+        {screen === "session" && question && <Session locale={locale} question={question} course={courseTitle} speechCourse={activeCourse} speechUrls={questionSpeech} onPlaySpeech={playSpeech} mode={mode} timer={timer} volume={playerVolume} onVolume={changePlayerVolume} position={position} total={sessionTotal} answer={answer} setAnswer={setAnswer} feedback={feedback} needsAnother={needsAnother} onSubmit={submit} onTimeout={timeout} onSaveExit={saveAndExit} onNext={next} />}
         {screen === "results" && <Results locale={locale} learningTotal={sessionTotal} history={result} reviewOpen={reviewOpen} setReviewOpen={setReviewOpen} onAgain={start} onCourses={() => setScreen("courses")} volume={playerVolume} onVolume={setPlayerVolume} />}
         {screen === "learning-history" && (replay && replayAnswers ? <ReplayView locale={locale} course={courseTitle} kind={replay.kind} answers={replayAnswers} index={replay.index} volume={playerVolume} onVolume={setPlayerVolume} onIndex={(value) => setReplay({ ...replay, index: value })} onExit={() => setReplay(undefined)} /> : <LearningHistory locale={locale} records={contextLearningHistory} onOpen={(record) => setReplay({ kind: "learning", recordId: record.id, index: 0 })} />)}
         {screen === "test-history" && (replay && replayAnswers ? <ReplayView locale={locale} course={courseTitle} kind={replay.kind} answers={replayAnswers} index={replay.index} volume={playerVolume} onVolume={setPlayerVolume} onIndex={(value) => setReplay({ ...replay, index: value })} onExit={() => setReplay(undefined)} /> : <TestHistory locale={locale} records={contextTestHistory} onOpen={(record) => setReplay({ kind: "test", recordId: record.id, index: 0 })} />)}
@@ -832,7 +849,7 @@ function isMediaGridOptions(question: Question): boolean {
   );
 }
 
-interface SessionProps { locale: Locale; question: Question; course: string; mode: Mode; timer: number; volume: number; onVolume(value: number): void; position: number; total: number; answer: string; setAnswer(value: string): void; feedback?: AnswerEvaluation; needsAnother: boolean; onSubmit(): void; onTimeout(): void; onSaveExit(): void; onNext(): void }
+interface SessionProps { locale: Locale; question: Question; course: string; speechCourse?: Course; speechUrls: readonly string[]; onPlaySpeech(urls: readonly string[]): void; mode: Mode; timer: number; volume: number; onVolume(value: number): void; position: number; total: number; answer: string; setAnswer(value: string): void; feedback?: AnswerEvaluation; needsAnother: boolean; onSubmit(): void; onTimeout(): void; onSaveExit(): void; onNext(): void }
 function Session(props: SessionProps) {
   const [remaining, setRemaining] = useState(props.timer);
   useEffect(() => {
@@ -846,16 +863,30 @@ function Session(props: SessionProps) {
   }, [props.question.id, props.mode, props.timer, props.feedback]);
   const correct = props.feedback?.fullyCorrect;
   const directionLabel = directionLabels.find(([direction]) => direction === props.question.direction)?.[1];
-  return <div className="session-page"><header className="session-header"><div><p>{props.course} / {translate(props.locale, props.mode)}</p><strong>{translate(props.locale, "question")} {props.position} {translate(props.locale, "of")} {props.total}</strong></div><div className="progress-track"><span style={{ width: `${Math.min(100, props.position / Math.max(1, props.total) * 100)}%` }} /></div>{props.mode === "testing" && props.timer > 0 && <span className="timer-badge">{remaining}s</span>}</header><article className={`question-card${isMediaGridOptions(props.question) ? " media-grid-card" : ""}`}><p className="section-label">{directionLabel ? translate(props.locale, directionLabel).toUpperCase() : props.question.direction.toUpperCase()}</p><h1 dir="auto">{promptText(props.locale, props.question)}</h1>{props.question.media && <QuestionMedia locale={props.locale} media={props.question.media} volume={props.volume} onVolume={props.onVolume} />}{props.question.kind === "choice" ? <fieldset className={`choice-list${isMediaGridOptions(props.question) ? " media-grid" : ""}`} disabled={Boolean(props.feedback)}><legend>{translate(props.locale, "yourAnswer")}</legend>{props.question.options?.map((option, index) => <QuestionChoice locale={props.locale} key={option.id} option={option} index={index} selected={props.answer === option.value} volume={props.volume} onVolume={props.onVolume} onSelect={() => props.setAnswer(option.value)} />)}</fieldset> : <label className="answer-box"><span>{translate(props.locale, "yourAnswer")}</span><input dir="auto" autoFocus value={props.answer} onChange={(event) => props.setAnswer(event.target.value)} onKeyDown={(event) => event.key === "Enter" && props.onSubmit()} placeholder={translate(props.locale, "yourAnswer")} disabled={Boolean(props.feedback)} /></label>}{props.feedback && <div className={`feedback ${correct ? "correct" : "incorrect"}`}><strong>{translate(props.locale, correct ? "correct" : "notQuite")}</strong><span>{correct ? (props.mode === "learning" && props.needsAnother ? translate(props.locale, "correctAgain") : translate(props.locale, "mastered")) : <>{translate(props.locale, "correctAnswer")}: <AnswerValues locale={props.locale} values={props.question.acceptedAnswers} mediaKind={answerMediaKind(props.question.direction)} volume={props.volume} onVolume={props.onVolume} /></>}</span>{!correct && <FeedbackDetails locale={props.locale} evaluation={props.feedback} question={props.question} volume={props.volume} onVolume={props.onVolume} />}</div>}<div className="question-actions"><button className="metal-button" onClick={props.onSaveExit}>{translate(props.locale, "saveExit")}</button>{!props.feedback ? <button className="gold-button" onClick={props.onSubmit}>{translate(props.locale, "checkAnswer")}</button> : <button className="gold-button" onClick={props.onNext}>{translate(props.locale, "nextQuestion")}</button>}</div></article></div>;
+  // D-22：文字答案按钮的手动朗读（媒体选项自身可播放，不提供）。
+  const optionSpeechUrl = (option: QuestionOption): string | undefined =>
+    props.speechCourse ? speechAudioForOption(props.speechCourse, props.question, option) : undefined;
+  return <div className="session-page"><header className="session-header"><div><p>{props.course} / {translate(props.locale, props.mode)}</p><strong>{translate(props.locale, "question")} {props.position} {translate(props.locale, "of")} {props.total}</strong></div><div className="progress-track"><span style={{ width: `${Math.min(100, props.position / Math.max(1, props.total) * 100)}%` }} /></div>{props.mode === "testing" && props.timer > 0 && <span className="timer-badge">{remaining}s</span>}</header><article className={`question-card${isMediaGridOptions(props.question) ? " media-grid-card" : ""}`}><p className="section-label">{directionLabel ? translate(props.locale, directionLabel).toUpperCase() : props.question.direction.toUpperCase()}</p><div className="question-heading"><h1 dir="auto">{promptText(props.locale, props.question)}</h1>{!props.question.media && props.speechUrls.length > 0 && <SpeechButton locale={props.locale} onPlay={() => props.onPlaySpeech(props.speechUrls)} />}</div>{props.question.media && <QuestionMedia locale={props.locale} media={props.question.media} volume={props.volume} onVolume={props.onVolume} />}{props.question.kind === "choice" ? <fieldset className={`choice-list${isMediaGridOptions(props.question) ? " media-grid" : ""}`} disabled={Boolean(props.feedback)}><legend>{translate(props.locale, "yourAnswer")}</legend>{props.question.options?.map((option, index) => <QuestionChoice locale={props.locale} key={option.id} option={option} index={index} selected={props.answer === option.value} volume={props.volume} onVolume={props.onVolume} onSelect={() => props.setAnswer(option.value)} speechUrl={optionSpeechUrl(option)} onPlaySpeech={() => { const url = optionSpeechUrl(option); if (url) props.onPlaySpeech([url]); }} />)}</fieldset> : <label className="answer-box"><span>{translate(props.locale, "yourAnswer")}</span><input dir="auto" autoFocus value={props.answer} onChange={(event) => props.setAnswer(event.target.value)} onKeyDown={(event) => event.key === "Enter" && props.onSubmit()} placeholder={translate(props.locale, "yourAnswer")} disabled={Boolean(props.feedback)} /></label>}{props.feedback && <div className={`feedback ${correct ? "correct" : "incorrect"}`}><strong>{translate(props.locale, correct ? "correct" : "notQuite")}</strong><span>{correct ? (props.mode === "learning" && props.needsAnother ? translate(props.locale, "correctAgain") : translate(props.locale, "mastered")) : <>{translate(props.locale, "correctAnswer")}: <AnswerValues locale={props.locale} values={props.question.acceptedAnswers} mediaKind={answerMediaKind(props.question.direction)} volume={props.volume} onVolume={props.onVolume} /></>}</span>{!correct && <FeedbackDetails locale={props.locale} evaluation={props.feedback} question={props.question} volume={props.volume} onVolume={props.onVolume} />}</div>}<div className="question-actions"><button className="metal-button" onClick={props.onSaveExit}>{translate(props.locale, "saveExit")}</button>{!props.feedback ? <button className="gold-button" onClick={props.onSubmit}>{translate(props.locale, "checkAnswer")}</button> : <button className="gold-button" onClick={props.onNext}>{translate(props.locale, "nextQuestion")}</button>}</div></article></div>;
 }
 function FeedbackDetails({ locale, evaluation, question, volume, onVolume }: { locale: Locale; evaluation: AnswerEvaluation; question: Question; volume: number; onVolume(value: number): void }) {
   const mediaKind = answerMediaKind(question.direction);
   const render = (values: readonly string[]) => values.length > 0 ? <AnswerValues locale={locale} values={values} mediaKind={mediaKind} volume={volume} onVolume={onVolume} /> : null;
   return <div className="feedback-details">{evaluation.matched.length > 0 && <span>{translate(locale, "matchedAnswers")}: {render(evaluation.matched)}</span>}{evaluation.extra.length > 0 && <span>{translate(locale, "extraAnswers")}: {render(evaluation.extra)}</span>}</div>;
 }
-function QuestionChoice({ locale, option, index, selected, volume, onVolume, onSelect }: { locale: Locale; option: QuestionOption; index: number; selected: boolean; volume: number; onVolume(value: number): void; onSelect(): void }) {
+function QuestionChoice({ locale, option, index, selected, volume, onVolume, onSelect, speechUrl, onPlaySpeech }: { locale: Locale; option: QuestionOption; index: number; selected: boolean; volume: number; onVolume(value: number): void; onSelect(): void; speechUrl?: string; onPlaySpeech(): void }) {
   const kind = option.media?.kind === "image" ? courseMediaLabels[locale].images : option.media ? courseMediaLabels[locale][option.media.kind] : "";
-  return <label><input type="radio" name="answer" value={option.value} checked={selected} onChange={onSelect} aria-label={option.media ? `${translate(locale, "selectMedia")} ${kind} ${index + 1}` : option.label} />{option.media ? <><QuestionMedia locale={locale} media={option.media} volume={volume} onVolume={onVolume} /><span>{index + 1}</span></> : <span dir="auto">{option.label}</span>}</label>;
+  return <label><input type="radio" name="answer" value={option.value} checked={selected} onChange={onSelect} aria-label={option.media ? `${translate(locale, "selectMedia")} ${kind} ${index + 1}` : option.label} />{option.media ? <><QuestionMedia locale={locale} media={option.media} volume={volume} onVolume={onVolume} /><span>{index + 1}</span></> : <span dir="auto">{option.label}</span>}{!option.media && speechUrl && <SpeechButton locale={locale} onPlay={onPlaySpeech} />}</label>;
+}
+
+// D-22/D-23：问题行与文字答案按钮的手动扬声器。点击只触发播放：
+// type="button"（不触发表单提交），preventDefault/stopPropagation 阻止
+// label→radio 的隐式激活与事件冒泡，因此不会选中选项、更不会提交答案。
+// 提示语走本地化文案 playNarration（朗读内容本身取决于课程语言配套录音）。
+function SpeechButton({ locale, onPlay }: { locale: Locale; onPlay(): void }) {
+  const label = translate(locale, "playNarration");
+  return <button type="button" className="speech-button" aria-label={label} title={label} onClick={(event) => { event.preventDefault(); event.stopPropagation(); onPlay(); }}>
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path d="M3 9v6h4l5 5V4L7 9H3z" fill="currentColor" /><path d="M16.5 12a4.5 4.5 0 0 0-2.5-4.03v8.05A4.5 4.5 0 0 0 16.5 12z" fill="currentColor" /><path d="M14 3.23v2.06c3.39.49 6 3.39 6 6.71s-2.61 6.22-6 6.71v2.06c4.5-.52 8-4.26 8-8.77s-3.5-8.25-8-8.77z" fill="currentColor" /></svg>
+  </button>;
 }
 function QuestionMedia({ locale, media, volume, onVolume }: { locale: Locale; media: { kind: "image" | "audio" | "video"; path: string }; volume: number; onVolume(value: number): void }) {
   const [failed, setFailed] = useState(false);

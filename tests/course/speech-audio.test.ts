@@ -6,7 +6,7 @@ import { loadCourseVersions } from "../../src/core/course/loader.js";
 import { buildCourseQuestionSet } from "../../src/core/quiz/question-set.js";
 import type { Course } from "../../src/core/course/types.js";
 import type { Question } from "../../src/core/quiz/types.js";
-import { columnLetters, speechAudioForOption, speechAudioForQuestion } from "../../src/renderer/app-shell/speech.js";
+import { columnLetters, speechAudioForOption, speechAudioForQuestion } from "../../src/core/course/speech-audio.js";
 import { createMultilingualCourseFixture } from "./xlsx-fixture.js";
 
 // ZNAWCA-15 S3 自动验收（WORKBUDDY-TASKS.md §5，D-22）：
@@ -45,7 +45,7 @@ describe("V2 speech directory consumption (D-22)", () => {
   it("scans the per-language speech directory for coordinate-named audio", async () => {
     for (const course of [eng, ru]) {
       expect(course.speechFiles).toEqual(["B2.mp3", "C1-F.mp3", "C1-R.mp3", "C2.mp3"]);
-      expect(course.speechDirectory).toBe(join(directory, "speech", course.languageCode));
+      expect(course.speechDirectory).toBe(join(directory, "speech", course.languageCode!));
     }
   });
 

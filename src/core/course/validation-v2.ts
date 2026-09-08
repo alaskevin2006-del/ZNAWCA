@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { normalizeKey, normalizeWhitespace, splitValues } from "./normalization.js";
 import { cellMediaCategory, scanCellMedia } from "./cell-media.js";
+import { listSpeechAudioFiles } from "./media.js";
 import type {
   Course,
   CourseColumn,
@@ -197,6 +198,8 @@ export async function validateV2Worksheet(
 
   const id = normalizeKey(`${language.base}_${language.language}`);
   const title = displayTitle || language.base;
+  // D-16/D-22：该语言的朗读音频目录 speech/<lang>/；缺失文件静默跳过（S3 消费）。
+  const speechDirectory = join(courseDirectory, "speech", language.language);
   return {
     course: {
       id,
@@ -210,8 +213,8 @@ export async function validateV2Worksheet(
       sheetName: worksheet.name,
       columns,
       items,
-      // D-16：该语言的朗读音频目录 speech/<lang>/（S3 负责播放，缺失文件静默跳过）。
-      speechDirectory: join(courseDirectory, "speech", language.language),
+      speechDirectory,
+      speechFiles: await listSpeechAudioFiles(speechDirectory),
     },
     issues,
   };

@@ -56,6 +56,44 @@
   margin: 0;
 }
 
+/* D-22：问题行与文字答案按钮的手动扬声器按钮。只触发播放，
+   不参与选中/提交（type="button" + 事件不冒泡）。 */
+.question-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.question-heading h1 {
+  flex: 1;
+  min-width: 0;
+}
+
+.speech-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  flex: none;
+  border: 1px solid #617067;
+  border-radius: 8px;
+  color: #e9d99f;
+  background: #0a251a;
+  cursor: pointer;
+}
+
+.speech-button:hover {
+  border-color: #c6a24b;
+  color: #f8f3df;
+}
+
+.choice-list .speech-button {
+  margin-left: auto;
+}
+
+
 .result-stats {
   display: flex;
   justify-content: center;

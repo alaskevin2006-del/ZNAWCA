@@ -75,6 +75,10 @@
 ## 4. 最终验证
 
 - S2（本分支，2026-09-09 02:35）：`npm run typecheck` ✅ ／ `npm test -- --run` 31 文件 217 项全通过 ✅ ／ `npm run build` 37 modules ✅
+- S2 复核（2026-09-09 02:40–02:55，接手工人独立复验，未改源码）：
+  - 逐项审计 D-19/D-20/D-21 实现与测试映射，四条自动验收均有真实断言且与 DECISIONS 字面一致；未发现越权修改（`git diff a674004..HEAD` 仅触及 `src/core/quiz/{scoring,generator,question-set,course-adapter}.ts` 与 `tests/quiz/{scoring,header-rules}.test.ts`）。
+  - `npm run typecheck` ✅；`npx vitest run tests/quiz` ✅ 4 文件 49 项（含 S2 新增 21 项）。
+  - `npm test -- --run` 全量与 `npm run build` 在本会话被沙箱环境多次拦截（含请求沙箱外授权亦被拒，与前述 3.5 环境备注同源），本次未能独立复跑；以 02:35 全绿记录 + 本次 typecheck/quiz 定向结果为准，建议主控合并前在主工作区复跑全量两门禁。
 - S1~S5 其余批次在各自分支验证（见对应分支 CHANGELOG）。
 
 ## 5. 最终交接

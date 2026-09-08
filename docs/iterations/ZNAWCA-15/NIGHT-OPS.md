@@ -111,6 +111,31 @@
 
 ## 6. 状态板（每次操作后更新，最新在上）
 
+### 2026-09-09 05:41 主控终检（05:40 定时）：三门禁全绿复跑，状态板更新，无缺口
+- 主干 `znawca15-trunk`：当前 HEAD `6c4b79f`（检查员③ 状态板更新）——本次终检**只更新本状态板**，不动代码，因此不产生新提交；待 06:20 终验收前若代码变动才会再 commit。
+- **§5.5 步骤 ① s3 合并确认**：合并已完成（`d458d0d` merge S3 → trunk）。`znawca15-trunk..znawca15-audio-progress` 为空（s3 无超出主干的新提交）；`znawca15-audio-progress..znawca15-trunk` 仅含 2 个提交（`2150b8a` vitest globals:true 补丁 + `6c4b79f` 状态板更新）——属于检验员③ 的独立维护，s3 不需要重新同步。CHANGELOG 冲突拼接在 `d458d0d` 完成，无遗失。
+- **§5.5 步骤 ② 全量门禁复跑**：
+  - `npm run typecheck` ✅（含 `tsconfig.json` + `tsconfig.main.json` 两端 `--noEmit`）
+  - `npm test -- --run` ✅ **38 文件 254 项**全通过（与 04:55 检查员③ 一致，未回归）
+  - `npx vite build && npx tsc -p tsconfig.main.json` ✅（86 个 dist 产物；`npm run build` 的 clean 步骤被沙箱拦截，按 §1 既定替代命令执行）
+- **§5.5 步骤 ③ WORKBUDDY-TASKS 各批次「自动验收」逐条核对（全部有真实测试覆盖且绿）**：
+  - **S0（D-10~D-14）**：`tests/session/difficulty.test.ts` D-10 跨课程隔离；`tests/smoke/media-grid.test.tsx` D-11 2×2 紧凑化；`tests/course/feedback-sounds.test.ts` + `tests/course/media.test.ts` D-12 拆模块 + 提示音排除；`tests/smoke/feedback-playback.test.tsx` D-13 四路径播放链；`tests/course/media.test.ts` MEDIA_MISSING 覆盖 D-14。
+  - **S1（D-15~D-18）**：`tests/course/v2-multilanguage.test.ts` 五条全部命中（A1 多语言显示名/英俄共享图/`/` 变体不互扰/混合媒体类别精确报错/V1 只读兼容零 issue）。
+  - **S2（D-19~D-21）**：`tests/quiz/header-rules.test.ts` 双向表头阻断 + `*` 列不出反向题；`tests/quiz/scoring.test.ts` `China/PRC; Asia` 三态判对 + `A/B` 不拆分。
+  - **S3（D-22~D-23、D-25）**：`tests/course/speech-audio.test.ts` + `tests/smoke/speech-playback.test.tsx` 跨语言隔离 + C1-F/C1-R 链序 + 媒体题不播 + 扬声器不提交；`tests/smoke/media-grid.test.tsx` D-25 视频 2×2（`marks four video options with the media grid (D-25)`）。
+  - **S4（D-24）**：`tests/session/progress-units.test.ts` 重试总数不变 + 正反向合并；`tests/smoke/unit-progress-display.test.tsx` Testing 三值（总数/已完成/剩余）。
+  - **补充任务 A（答错小图）**：`tests/smoke/p0-acceptance.test.tsx` `shows the correct-answer thumbnail (not a path string) in feedback after a wrong name-to-image answer` + `tests/smoke/feedback-media-preview.test.tsx`（新增文件命名空间）。
+  - **补充任务 B（D-19 导入侧接线）**：`tests/course/v2-header-import.test.ts` `HEADER_BIDIRECTIONAL_MISSING` / `HEADER_BIDIRECTIONAL_SIDE_EMPTY` 阻断导入。
+  - 无缺口、无回归；所有错误码（`CELL_MEDIA_MISSING`/`CELL_MEDIA_MIXED_KIND`/`COLUMN_MEDIA_MIXED_KIND`/`HEADER_BIDIRECTIONAL_*`/`MEDIA_MISSING`）都在测试中真实断言。
+- **§5.5 步骤 ④ 06:20 终验收基线（明面给验收 GPT）**：
+  - 唯一 commit 基线：**`6c4b79f`**（branch `znawca15-trunk`，HEAD）。
+  - 各分支：S1 ✅ 已合并、S2 ✅ 已合并、S3+S4 ✅ 已合并（含 D-25 + vitest 修复）、S0 ✅ 已满足。
+  - 三门禁：typecheck ✅ / 38 文件 254 项 ✅ / build ✅（86 文件 dist）。
+  - 决策状态：D-10~D-25 全部 已修改/已满足；S5（阿/俄文案）按 DECISIONS §4 明确排除。
+  - 已知遗留（按 §4 待客户确认，不擅改）：波兰语两条文案（`Inteligentnie dobrany zestaw pytań`、`Suma obecnych projeków`）。
+  - 全局未 git push、未改 `DECISIONS.md`/`WORKBUDDY-TASKS.md`/`ACCEPTANCE.md`（按硬约束 2 禁改）。
+- 下一步：06:20 终验收（验收 GPT 角色）独立核对代码/测试/960×640/三门禁 → 写 `MORNING-REPORT-2026-09-09.md`；07:00 用户起床看晨报。05:00 旧自动化「ZNAWCA 修复项落地检查」今晚仍暂停，晨间由主控决定是否恢复。
+
 ### 2026-09-09 04:55 检查员③：D-25 整改 + vitest 4.x 修复，三门禁全绿
 - 主干 `znawca15-trunk`：`2150b8a`（vitest globals 修复）← `d458d0d`（merge S3 含 D-25）← `a331600`（D-25 + vitest pool 修复，在 S3 worktree 提交）。
 - **D-25 视频选项 2×2**：原代码 `isMediaGridOptions` 明确排除 video（注释写「本轮排除」），D-25 决策要求视频与图片/音频同等 2×2 布局——属允许范围（AppShell.tsx + choices.css 在 S3 允许修改列表）。修复：加入 `option.media?.kind === "video"`、choices.css 视频收窄规则、测试从「不标记视频」改为「标记视频」。提交 `a331600`。

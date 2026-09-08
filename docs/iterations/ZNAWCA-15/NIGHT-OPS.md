@@ -111,6 +111,19 @@
 
 ## 6. 状态板（每次操作后更新，最新在上）
 
+### 2026-09-09 03:42 主控巡检：S3+S4 完成并合并入主干，三门禁全绿
+- 主干 `znawca15-trunk`：`aaefff3`（merge S3+S4 `aaefff3`，fast-forward）。`npm run typecheck` ✅；`npm test -- --run` 36 文件 250 项 ✅；`npx vite build && npx tsc -p tsconfig.main.json` ✅（绕过 clean，见 §1 沙箱限制）。
+- `znawca15-v2-model`：S1 完成并已合并（`6338337`/`4bef11e`/`74105f0`）。
+- `znawca15-quiz-rules`：S2 完成并已合并（`5512ae7`/`52941f5`/`c3386a8`/`66dd876`/`9166437`）。
+- `znawca15-audio-progress`：S3+S4 完成（`7775984`/`f5c79ae`/`23804d3`/`aaefff3`），已合并入 trunk。
+- 一致性纠偏：`git diff znawca15-trunk...znawca15-audio-progress` 审查结论：
+  - 无触碰 `DECISIONS.md` §4 排除项（Web/账户/付费/后台/AI 出题/Anvil/属性间横向出题/自动同义词/阿俄文案）。
+  - 修改范围基本落在 `WORKBUDDY-TASKS.md` §5/§6 允许范围；`session-controller.ts` 与 `src/core/course/speech-audio.ts` 虽未在字面列表，但属 D-24 AppShell 进度展示 / D-22 浏览器安全纯函数的最小必要支撑，不做无法完成验收，故保留。
+  - 无降低断言、删测试、吞异常行为；typecheck 发现一处测试类型不匹配（`course.languageCode` 可能 undefined）已由主控当场修正（非空断言），未改实现逻辑。
+- 已更新 `docs/iterations/ZNAWCA-15/CHANGELOG.md`（S3+S4 批次记录、最终验证、状态表）。
+- 遗留待确认：波兰语两条文案（`Inteligentnie dobrany zestaw pytań`、`Suma obecnych projeków`）措辞未按客户指定——按 §4 待客户确认，不擅改；晨报标注。
+- 下一步：05:40 主控终检（按时间表）进行最终全量复核；旧自动化「ZNAWCA 修复项落地检查」仍暂停，晨间由主控决定是否恢复。
+
 ### 2026-09-09 02:58 主控：S1+S2 合并入主干，三门禁全绿，启动 S3+S4
 - 主干 `znawca15-trunk`：`7de853a`（merge S1 `5c07d07` + merge S2）。typecheck ✅；`npm test -- --run` 32 文件 229 项 ✅；build ✅（绕过 clean，见 §1 沙箱限制）。
 - `znawca15-v2-model`：S1 完成（`6338337`/`4bef11e`/`74105f0`，已合并）。

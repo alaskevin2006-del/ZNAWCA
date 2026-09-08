@@ -1,6 +1,6 @@
 # ZNAWCA-15 实施台账
 
-> 填写者：WorkBuddy（主干合并）｜状态：S0 ✅ S1 ✅（D-15~D-18）S2 ✅（D-19~D-21）｜S3~S5 待实施
+> 填写者：WorkBuddy（主干合并）｜状态：S0 ✅ S1 ✅（D-15~D-18）S2 ✅（D-19~D-21）S3+S4 ✅（D-22~D-24 + 答错小图）｜S5（阿/俄文案）延后
 
 ## 1. 基线
 
@@ -31,10 +31,10 @@
 | D-19 | 已修改 | S2 | src/core/quiz/course-adapter.ts、generator.ts、question-set.ts；tests/quiz/header-rules.test.ts | 双向表头解析（首个 `/`、两侧必填）+ 校验阻断 + 正/反向题干用于 prompt；提交 `5512ae7` |
 | D-20 | 已修改 | S2 | src/core/quiz/scoring.ts；tests/quiz/scoring.test.ts、tests/quiz/header-rules.test.ts | `;` 分必答组、`/` 组内任选别名；多别名判对；媒体路径保持原子匹配；提交 `52941f5`、`66dd876` |
 | D-21 | 已修改 | S2 | src/core/quiz/question-set.ts、course-adapter.ts；tests/quiz/header-rules.test.ts | `$`＝仅作问题（只出反向题）、`*`＝仅作答案（只出正向题）；不替代 D-01；提交 `c3386a8` |
-| D-22 | 未开始 | S3 | | |
-| D-23 | 未开始 | S3 | | |
-| D-24 | 未开始 | S4 | | |
-| D-25 | 未开始 | S3 | | |
+| D-22 | 已修改 | S3 | `src/core/course/media.ts`（`listSpeechAudioFiles`）、`src/core/course/validation-v2.ts`（`speechDirectory`/`speechFiles`）、`src/core/course/loader.ts`（接线）、`src/main/main.ts`（`withMediaUrls` 转 URL）、`src/core/course/speech-audio.ts`（坐标解析纯函数）、`src/renderer/app-shell/AppShell.tsx`/`choices.css`（扬声器按钮）、`src/renderer/app-shell/speech.ts`（兼容重导出）、`tests/course/speech-audio.test.ts`、`tests/smoke/speech-playback.test.tsx` | `speech/<lang>/` 分语言目录；坐标命名 `C4.mp3`、`C1-F.mp3`/`C1-R.mp3`；同坐标跨语言隔离；缺失静默跳过；无 TTS |
+| D-23 | 已修改 | S3 | `src/renderer/app-shell/AppShell.tsx`（`questionSpeech` useMemo + useEffect 自动播放）、`tests/smoke/speech-playback.test.tsx` | 文字题出现自动播放问题单元格音频；媒体题不播；播放不阻断判题/计分/保存/下一题 |
+| D-24 | 已修改 | S4 | `src/core/progress/knowledge-progress.ts`（`progressUnitKey`/`progressUnitTotal`/`ProgressUnitCounts`）、`src/core/session/learning-session.ts`、`src/core/session/testing-session.ts`、`src/core/session/session-controller.ts`（暴露 `progressUnits`）、`tests/session/progress-units.test.ts` | 一个「名称+学习单元格」关系为一个进度单位；Learning 开始固定总数、重试不增；Testing 显示总数/已完成/剩余；空单元格/缺失媒体/无区分度列天然被跳过不计 |
+| D-25 | 未开始 | S3 | — | 本轮明确不实施；`tests/smoke/media-grid.test.tsx` 已断言 `does not mark video options in this round` |
 
 ## 3. 批次记录
 
@@ -111,6 +111,35 @@
   - `npm run typecheck` ✅；`npx vitest run tests/quiz` ✅ 4 文件 49 项（含 S2 新增 21 项）。
   - `npm test -- --run` 全量与 `npm run build` 在该会话被沙箱拦截，以 02:35 全绿记录 + typecheck/quiz 定向结果为准；由主控在主工作区合并后复跑全量门禁（见 §4 合并验证）。
 - 主干合并验证（2026-09-09，主控）：S1+S2 合并后在主工作区复跑 `npm run typecheck` + `npm test -- --run` + `npm run build`，结果回填于此。
+- S3+S4 分支验证（2026-09-09 03:40–03:42，主控巡检在 `znawca15-audio-progress`）：`npm run typecheck` ✅；定向测试（speech-audio/v2-header-import/progress-units/speech-playback）4 文件 21 项 ✅；`npm test -- --run` 36 文件 250 项 ✅；`npx vite build && npx tsc -p tsconfig.main.json` ✅。
+- 主干合并验证（2026-09-09 03:42，主控在主工作区合并 `znawca15-audio-progress`）：Fast-forward 合并 `aaefff3`；`npm run typecheck` ✅；`npm test -- --run` 36 文件 250 项 ✅；`npx vite build && npx tsc -p tsconfig.main.json` ✅。
+
+### 批次 S3+S4（朗读与进度，D-22~D-24 + 答错小图）
+
+- 开始/完成时间：2026-09-09 03:00 → 03:42（夜间流水线，s3 worktree，分支 `znawca15-audio-progress`）
+- 提交序列（基于已含 S1+S2 的 trunk `7de853a`）：`7775984`(D-19 导入侧接线) → `f5c79ae`(D-22 朗读目录消费) → `23804d3`(D-24 进度统计) → `aaefff3`(D-22/D-23/D-24 UI 收尾与测试修复)
+- 修改摘要：
+  - **D-22**：`media.ts` 新增 `listSpeechAudioFiles` 静默扫描 `speech/<lang>/`；`validation-v2.ts` 把 `speechDirectory` 和 `speechFiles` 写入课程；`loader.ts` 把扫描结果和 D-19 `bidirectionalHeaderIssues` 一起并入课程导入 issues；`main.ts` `withMediaUrls` 将坐标文件名转为 `znawca-media://` URL；新增 `src/core/course/speech-audio.ts` 提供浏览器安全的纯函数 `speechAudioForQuestion`/`speechAudioForOption`/`columnLetters`；`AppShell.tsx` 在问题行和文字答案按钮旁渲染扬声器按钮；`choices.css` 加 `.speech-button` / `.question-heading` 样式；`speech.ts` 保留为兼容重导出入口。
+  - **D-23**：`AppShell.tsx` 中用 `useMemo` 计算当前文字题的朗读链，并用 `useEffect` 在新题出现时自动播放；媒体题返回空链不播放；扬声器按钮 `type="button"` + 阻止冒泡，点击不选中、不提交。
+  - **D-24**：`knowledge-progress.ts` 新增 `progressUnitKey`（`objectId\u0000projectId`）与 `progressUnitTotal`，正反向/题型/媒体变体全部归并；`learning-session.ts` 开始固定 `unitTotal`，完成单位用 Set 去重，快照保存/恢复兼容旧快照；`testing-session.ts` 累计已作答单位并计算剩余；`session-controller.ts` 暴露 `progressUnits()`；`AppShell.tsx` 中进度条与 Testing 计数使用新的进度统计。
+  - **补充授权项（答错小图）**：已由 S0/S1 基线测试覆盖，`tests/smoke/p0-acceptance.test.tsx` 中 `shows the correct-answer thumbnail (not a path string) in feedback after a wrong name-to-image answer` 通过。
+- 自动验收对应测试：
+  - 同一坐标不同语言播放各自录音 → `speech-audio.test.ts` "plays each language's own recording for the same coordinate (B2)"
+  - 正反向题干不播同一段 → `speech-audio.test.ts` "plays the forward stem (C1-F) for forward and the reverse stem (C1-R) for reverse questions"
+  - 媒体题不自动朗读 → `speech-audio.test.ts` / `speech-playback.test.tsx` "does not narrate when the question itself is media" / "does not auto-play when the question itself is media"
+  - 扬声器点击不触发提交 → `speech-playback.test.tsx` "plays an option's narration from its speaker without selecting or submitting"
+  - 同一关系重试多次总数不变 → `progress-units.test.ts` "keeps the learning total fixed across retries"
+  - 正反向题和不同题型不重复占进度 → `progress-units.test.ts` "merges forward/reverse directions..." / "does not double-count a unit when both its forward and reverse questions complete"
+  - Testing 显示总数/已完成/剩余 → `progress-units.test.ts` "shows total/completed/remaining for testing"
+  - 空单元格/缺失媒体/无区分度列不计 → `progress-units.test.ts` "excludes empty cells, missing media and non-discriminating columns"
+- 验证：`npm run typecheck` ✅；定向测试 4 文件 21 项 ✅；`npm test -- --run` 36 文件 250 项 ✅；`npx vite build && npx tsc -p tsconfig.main.json` ✅。
+- 与任务方案的偏差：
+  - `session-controller.ts` 不在 S4「允许修改」明确列出的文件中，但为让 AppShell 获取进度统计所必需，改动仅为暴露 `progressUnits()` 两个 getter，属最小必要封装。
+  - `src/core/course/speech-audio.ts` 文件名未在 S3「允许修改」列表中，但它是把 renderer 侧 `speech.ts` 的坐标解析逻辑收敛为浏览器安全纯函数所必需，供 AppShell 与测试共用。
+  - D-25 视频 2×2 本轮未实施，测试已明确断言不标记视频选项为 media grid。
+- 已知风险：
+  - 朗读链顺序假设：问题单元格 → 双向标题（F/R）。若后续 UI 把题干放在内容前，需同步调整顺序。
+  - `speech-audio.ts` 中列标题按 `course.columns.find((column) => column.title === field)` 查找；V2 表头含双向文本（如 `Diet / Food`），`field` 存储的是完整标题字符串，与列定义一致，故能正确命中。
 
 ## 5. 最终交接
 

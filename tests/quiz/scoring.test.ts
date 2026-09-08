@@ -46,6 +46,14 @@ describe("batch S2 acceptance (D-20): explicit aliases", () => {
   it("keeps alias matching case- and whitespace-insensitive", () => {
     expect(evaluateAnswer(["China/PRC", "Asia"], "prc ; asia ")).toMatchObject({ score: 1, fullyCorrect: true });
   });
+
+  it("keeps media path answers atomic despite their slashes", () => {
+    const expected = ["znawca-media://asset/alpha.jpg"];
+    expect(evaluateAnswer(expected, "znawca-media://asset/alpha.jpg").fullyCorrect).toBe(true);
+    expect(evaluateAnswer(expected, "znawca-media://asset/bravo.jpg").fullyCorrect).toBe(false);
+    expect(evaluateAnswer(["media/flag.png"], "media/flag.png").fullyCorrect).toBe(true);
+    expect(evaluateAnswer(["media/flag.png"], "media/other.png").fullyCorrect).toBe(false);
+  });
 });
 
 describe("batch B acceptance: set comparison and normalization", () => {

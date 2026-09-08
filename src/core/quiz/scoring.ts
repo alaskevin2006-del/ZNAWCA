@@ -14,10 +14,19 @@ export function splitAnswer(value: string): string[] {
 }
 
 /**
- * D-20：把一个答案组说明按 `/` 拆成归一化别名集合。
+ * D-20：把一个文本答案组说明按 `/` 拆成归一化别名集合。
  * `China/PRC` 表示一个必答组，提交 `China` 或 `PRC` 任一别名即覆盖该组。
+ * 媒体路径答案（含协议或以媒体扩展名结尾，如 `znawca-media://asset/a.jpg`）
+ * 本身含 `/` 但必须整体精确匹配，不参与别名拆分。
  */
+const MEDIA_ANSWER = /\.(?:avif|bmp|gif|jpe?g|png|webp|mp3|wav|m4a|mp4|webm)$/iu;
+
+function isAtomicAnswer(value: string): boolean {
+  return value.includes("://") || MEDIA_ANSWER.test(value);
+}
+
 function aliasesOf(specifier: string): Set<string> {
+  if (isAtomicAnswer(specifier)) return new Set([normalizeText(specifier)].filter((alias) => alias.length > 0));
   return new Set(
     specifier
       .split("/")

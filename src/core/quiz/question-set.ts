@@ -2,6 +2,7 @@ import type { Course } from "../course/types.js";
 import {
   bidirectionalHeaderIssues,
   BidirectionalHeaderError,
+  columnRole,
   courseObjects,
   filteredCourseObjects,
   skippedQuestionFields,
@@ -114,8 +115,13 @@ export function buildCourseQuestionSet(request: BuildCourseQuestionSetRequest): 
 
   for (const target of filteredObjects) {
     for (const column of questionColumns) {
+      // D-21：`$`＝仅作问题（只出反向题）、`*`＝仅作答案（只出正向题）；
+      // 未声明角色的列不受影响；不替代 D-01 的歧义反向题跳过。
+      const role = columnRole(column.title);
       for (const direction of ["name-to-property", "property-to-name"] as const) {
         if (!directions.has(direction)) continue;
+        if (direction === "name-to-property" && role === "question-only") continue;
+        if (direction === "property-to-name" && role === "answer-only") continue;
         for (const kind of requestedKinds) add(target.id, direction, kind, column.title);
       }
     }

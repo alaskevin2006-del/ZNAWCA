@@ -4,6 +4,7 @@ import {
   bidirectionalHeaderIssues,
   BidirectionalHeaderError,
   bidirectionalStems,
+  columnRole,
 } from "../../src/core/quiz/course-adapter.js";
 import { generateQuestion } from "../../src/core/quiz/generator.js";
 import { buildCourseQuestionSet } from "../../src/core/quiz/question-set.js";
@@ -84,6 +85,15 @@ describe("D-19: bidirectional header parsing", () => {
     expect(bidirectionalStems("Capital /")).toBeUndefined();
     expect(bidirectionalStems("/ Country")).toBeUndefined();
     expect(bidirectionalStems("/")).toBeUndefined();
+  });
+
+  it("parses stems and roles behind column markers (D-19 + D-21 combination)", () => {
+    expect(bidirectionalStems("$Capital / Country")).toEqual({ forward: "Capital", reverse: "Country" });
+    expect(bidirectionalStems("*Flag / Country flag")).toEqual({ forward: "Flag", reverse: "Country flag" });
+    expect(columnRole("$Capital / Country")).toBe("question-only");
+    expect(columnRole("*Flag / Country flag")).toBe("answer-only");
+    expect(columnRole("Capital / Country")).toBeUndefined();
+    expect(columnRole("#Continent")).toBeUndefined();
   });
 });
 
@@ -174,6 +184,71 @@ describe("D-19 acceptance: missing or one-sided headers block question building 
     expect(result.questions.length).toBeGreaterThan(0);
     expect(result.questions.find((question) => question.direction === "name-to-property")?.prompt).toBe("Gull / Food");
     expect(result.questions.find((question) => question.direction === "property-to-name")?.prompt).toBe("fish");
+  });
+});
+
+describe("D-21 acceptance: column role markers constrain question directions", () => {
+  const course = v2Course([column(3, CAPITAL), column(4, FLAG), column(5, ANTHEM)], countries.map((country) => itemOf(country)));
+
+  it("generates no reverse question that uses an answer-only (*) column as its stem", () => {
+    const result = buildCourseQuestionSet({
+      course,
+      teachingStyle: "strict",
+      directions: ["name-to-property", "property-to-name"],
+      requestedKinds: ["input"],
+      random: fixed,
+    });
+    expect(result.questions.some((question) => question.field === FLAG && question.direction === "property-to-name")).toBe(false);
+    expect(result.questions.some((question) => question.field === FLAG && question.direction === "name-to-property")).toBe(true);
+  });
+
+  it("generates no forward question that uses a question-only ($) column as its answer", () => {
+    const result = buildCourseQuestionSet({
+      course,
+      teachingStyle: "strict",
+      directions: ["name-to-property", "property-to-name"],
+      requestedKinds: ["input"],
+      random: fixed,
+    });
+    expect(result.questions.some((question) => question.field === ANTHEM && question.direction === "name-to-property")).toBe(false);
+    expect(result.questions.some((question) => question.field === ANTHEM && question.direction === "property-to-name")).toBe(true);
+  });
+
+  it("leaves unmarked columns with both directions", () => {
+    const result = buildCourseQuestionSet({
+      course,
+      teachingStyle: "strict",
+      directions: ["name-to-property", "property-to-name"],
+      requestedKinds: ["input"],
+      random: fixed,
+    });
+    expect(result.questions.some((question) => question.field === CAPITAL && question.direction === "name-to-property")).toBe(true);
+    expect(result.questions.some((question) => question.field === CAPITAL && question.direction === "property-to-name")).toBe(true);
+  });
+
+  it("does not replace the D-01 ambiguity skip for marked question-only columns", () => {
+    // Two countries share the same anthem: the $-marked reverse question stays
+    // subject to the existing ambiguity rejection instead of being forced out.
+    const shared = countries.map((country, index) =>
+      itemOf(country, index < 2 ? { [ANTHEM]: ["Shared March"] } : {}),
+    );
+    const ambiguous = v2Course([column(3, CAPITAL), column(4, FLAG), column(5, ANTHEM)], shared);
+    const result = buildCourseQuestionSet({
+      course: ambiguous,
+      teachingStyle: "strict",
+      directions: ["property-to-name"],
+      requestedKinds: ["input"],
+      random: fixed,
+    });
+    expect(result.questions.some((question) => question.field === ANTHEM && (question.objectId === "china" || question.objectId === "japan"))).toBe(false);
+    expect(result.questions.some((question) => question.field === ANTHEM && question.objectId === "france")).toBe(true);
+    expect(result.skipped).toContainEqual({
+      objectId: "china",
+      field: ANTHEM,
+      direction: "property-to-name",
+      requestedKind: "input",
+      reason: "ambiguous-reverse-question",
+    });
   });
 });
 

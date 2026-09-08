@@ -1,15 +1,6 @@
 import type { AnswerEvaluation } from "./types.js";
 import { normalizeText } from "./types.js";
 
-function uniqueNormalized(values: readonly string[]): Map<string, string> {
-  const result = new Map<string, string>();
-  for (const value of values) {
-    const normalized = normalizeText(value);
-    if (normalized) result.set(normalized, value.trim());
-  }
-  return result;
-}
-
 const ANSWER_DELIMITER = /[;；,，]/u;
 
 /**
@@ -22,21 +13,80 @@ export function splitAnswer(value: string): string[] {
   return value.split(ANSWER_DELIMITER).map((part) => part.trim()).filter(Boolean);
 }
 
+/**
+ * D-20：把一个答案组说明按 `/` 拆成归一化别名集合。
+ * `China/PRC` 表示一个必答组，提交 `China` 或 `PRC` 任一别名即覆盖该组。
+ */
+function aliasesOf(specifier: string): Set<string> {
+  return new Set(
+    specifier
+      .split("/")
+      .map(normalizeText)
+      .filter((alias) => alias.length > 0),
+  );
+}
+
+interface ExpectedGroup {
+  /** 原始组说明（含别名写法），用于 matched/missed 展示。 */
+  readonly specifier: string;
+  /** 组内全部别名（归一化）。 */
+  readonly aliases: ReadonlySet<string>;
+}
+
+function expectedGroups(expected: readonly string[]): ExpectedGroup[] {
+  const groups: ExpectedGroup[] = [];
+  const seen = new Set<string>();
+  for (const value of expected) {
+    const aliases = aliasesOf(value);
+    if (aliases.size === 0) continue;
+    // 别名集合相同的组说明视为同一必答组（顺序不同也不重复要求）。
+    const signature = [...aliases].sort().join("\u0000");
+    if (seen.has(signature)) continue;
+    seen.add(signature);
+    groups.push({ specifier: value.trim(), aliases });
+  }
+  return groups;
+}
+
+interface SubmittedToken {
+  /** 原样提交串，用于 extra 展示。 */
+  readonly token: string;
+  /** 提交串按 `/` 展开的别名（提交 `China/PRC` 等价于提交了两个别名）。 */
+  readonly aliases: ReadonlySet<string>;
+}
+
+function submittedTokens(submitted: string | readonly string[]): SubmittedToken[] {
+  const parts = typeof submitted === "string" ? splitAnswer(submitted) : submitted;
+  const byNormalized = new Map<string, SubmittedToken>();
+  for (const part of parts) {
+    const token = part.trim();
+    if (!token) continue;
+    const entry: SubmittedToken = { token, aliases: aliasesOf(token) };
+    byNormalized.set(normalizeText(token), entry);
+  }
+  return [...byNormalized.values()];
+}
+
 export function evaluateAnswer(
   expected: readonly string[],
   submitted: string | readonly string[],
 ): AnswerEvaluation {
-  const expectedMap = uniqueNormalized(expected);
-  const submittedMap = uniqueNormalized(typeof submitted === "string" ? splitAnswer(submitted) : submitted);
-  const matched = [...submittedMap.keys()].filter((answer) => expectedMap.has(answer));
-  const missed = [...expectedMap.keys()].filter((answer) => !submittedMap.has(answer));
-  const extra = [...submittedMap.keys()].filter((answer) => !expectedMap.has(answer));
-  const score = expectedMap.size === 0 ? 0 : matched.length / expectedMap.size;
+  const groups = expectedGroups(expected);
+  const tokens = submittedTokens(submitted);
+  const groupMatched = groups.map((group) =>
+    tokens.some((entry) => [...entry.aliases].some((alias) => group.aliases.has(alias))),
+  );
+  const extra = tokens
+    .filter((entry) => ![...entry.aliases].some((alias) => groups.some((group) => group.aliases.has(alias))))
+    .map((entry) => entry.token);
+  const matched = groups.filter((_, index) => groupMatched[index]).map((group) => group.specifier);
+  const missed = groups.filter((_, index) => !groupMatched[index]).map((group) => group.specifier);
+  const score = groups.length === 0 ? 0 : matched.length / groups.length;
   return {
     score,
-    fullyCorrect: missed.length === 0 && extra.length === 0 && expectedMap.size > 0,
-    matched: matched.map((key) => expectedMap.get(key)!),
-    missed: missed.map((key) => expectedMap.get(key)!),
-    extra: extra.map((key) => submittedMap.get(key)!),
+    fullyCorrect: missed.length === 0 && extra.length === 0 && groups.length > 0,
+    matched,
+    missed,
+    extra,
   };
 }

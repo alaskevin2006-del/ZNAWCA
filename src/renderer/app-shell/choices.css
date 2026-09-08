@@ -93,6 +93,16 @@
   margin-left: auto;
 }
 
+/* D-24：Testing 头部的进度单位三值（已完成 / 总数 · 剩余）。 */
+.unit-progress {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: #e9d99f;
+  opacity: 0.9;
+}
+
 
 .result-stats {
   display: flex;

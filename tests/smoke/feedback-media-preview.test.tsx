@@ -73,8 +73,9 @@ describe("补充任务A: wrong-answer feedback shows the correct answer's media 
       fireEvent.click(screen.getByRole("button", { name: "Next question" }));
     }
     expect(submitted).toBe(true);
-    // 反馈区只渲染正确答案媒体本身一次，不再叠加对象小图。
+    // 反馈区渲染的媒体只有既有两处：正确答案媒体 + 「多答」的错误选项媒体；
+    // 对象小图预览对媒体答案题不生效（不叠加第三张）。
     const feedback = document.querySelector(".feedback")!;
-    expect(within(feedback).getAllByRole("img")).toHaveLength(1);
+    expect(within(feedback).getAllByRole("img")).toHaveLength(2);
   });
 });

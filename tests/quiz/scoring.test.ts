@@ -17,6 +17,45 @@ describe("batch B acceptance: answer parsing", () => {
   });
 });
 
+describe("batch S2 acceptance (D-20): explicit aliases", () => {
+  const expected = ["China/PRC", "Asia"];
+
+  it("accepts any single declared alias per required group", () => {
+    expect(evaluateAnswer(expected, "China; Asia")).toMatchObject({ score: 1, fullyCorrect: true });
+    expect(evaluateAnswer(expected, "PRC; Asia")).toMatchObject({ score: 1, fullyCorrect: true });
+  });
+
+  it("accepts submitting several declared aliases of the same group", () => {
+    expect(evaluateAnswer(expected, "China; PRC; Asia")).toMatchObject({ score: 1, fullyCorrect: true });
+    expect(evaluateAnswer(expected, "China/PRC; Asia")).toMatchObject({ score: 1, fullyCorrect: true });
+  });
+
+  it("reports partial and wrong alias submissions", () => {
+    expect(evaluateAnswer(expected, "China")).toMatchObject({ score: 0.5, fullyCorrect: false, missed: ["Asia"] });
+    expect(evaluateAnswer(expected, "China; Africa")).toMatchObject({ fullyCorrect: false, extra: ["Africa"] });
+  });
+
+  it("does not split a slash group into two required answers", () => {
+    expect(evaluateAnswer(["A/B"], "A")).toMatchObject({ score: 1, fullyCorrect: true });
+    expect(evaluateAnswer(["A/B"], "B")).toMatchObject({ score: 1, fullyCorrect: true });
+    expect(evaluateAnswer(["A/B"], "A; B")).toMatchObject({ score: 1, fullyCorrect: true });
+    expect(evaluateAnswer(["A/B"], "A; C")).toMatchObject({ fullyCorrect: false, extra: ["C"] });
+    expect(evaluateAnswer(["A/B"], "A/B")).toMatchObject({ score: 1, fullyCorrect: true });
+  });
+
+  it("keeps alias matching case- and whitespace-insensitive", () => {
+    expect(evaluateAnswer(["China/PRC", "Asia"], "prc ; asia ")).toMatchObject({ score: 1, fullyCorrect: true });
+  });
+
+  it("keeps media path answers atomic despite their slashes", () => {
+    const expected = ["znawca-media://asset/alpha.jpg"];
+    expect(evaluateAnswer(expected, "znawca-media://asset/alpha.jpg").fullyCorrect).toBe(true);
+    expect(evaluateAnswer(expected, "znawca-media://asset/bravo.jpg").fullyCorrect).toBe(false);
+    expect(evaluateAnswer(["media/flag.png"], "media/flag.png").fullyCorrect).toBe(true);
+    expect(evaluateAnswer(["media/flag.png"], "media/other.png").fullyCorrect).toBe(false);
+  });
+});
+
 describe("batch B acceptance: set comparison and normalization", () => {
   it("accepts any order of every required part with no extras", () => {
     expect(evaluateAnswer(["A", "B"], "b，a")).toMatchObject({ score: 1, fullyCorrect: true });

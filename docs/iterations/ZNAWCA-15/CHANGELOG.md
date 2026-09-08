@@ -1,15 +1,17 @@
 # ZNAWCA-15 实施台账
 
-> 填写者：WorkBuddy（主干）｜状态：S1 完成（D-15~D-18）｜S0 已完成，S2~S5 待实施
+> 填写者：WorkBuddy（主干合并）｜状态：S0 ✅ S1 ✅（D-15~D-18）S2 ✅（D-19~D-21）｜S3~S5 待实施
 
 ## 1. 基线
 
-- 开始时间：2026-09-07
+- 开始时间：2026-09-07（主干 S0）；S2 分支开工 2026-09-09 00:20
 - 执行工具/版本：WorkBuddy（node 22.22.2）
-- 分支：`codex/p2-completion`（HEAD=e448334，脏工作区）
-- `npm run typecheck`：✅ 通过
-- `npm test -- --run`：✅ 27 文件、175 项全通过
-- `npm run build`：✅ 通过（37 modules，无 node:fs externalize 残留）
+- S2 分支：`znawca15-quiz-rules`（worktree `ZNAWCA-night/s2`，基线孤儿提交 `a674004`，node_modules junction 可用）
+- 开工审计（S2 范围现状）：
+  - `scoring.ts`：`splitAnswer` 已按 D-02 四分隔符实现且正确——未重写，仅扩展；`evaluateAnswer` 为原子值集合比较，无别名概念 → D-20 需新实现。
+  - `generator.ts`：`hasUniqueReverseAnswer`（D-01 歧义跳过）已正确实现——保留不动；`promptFor` 无双向题干概念 → D-19 需新实现。
+  - `question-set.ts`/`course-adapter.ts`/`filter.ts`：无表头解析、无列角色、无双向表头校验 → D-19/D-21 需新实现。
+- 分支内门禁（S2 完成后）：`npm run typecheck` ✅；`npm test -- --run` ✅ 31 文件 217 项全通过；`npm run build` ✅（37 modules）
 
 ## 2. 决策实施状态
 
@@ -26,9 +28,9 @@
 | D-16 | 已修改 | S1 | language.ts（遗留）、loader.ts（遗留）、types.ts、validation-v2.ts、tests/course/v2-multilanguage.test.ts、xlsx-fixture.ts | 遗留 language.ts 解析与 loader 多语言分组审计正确，保留；本轮补 `speechDirectory`（`speech/<lang>/`）字段、最小多语言样例 fixture 与「英俄引用同一共享图片」验收测试 |
 | D-17 | 已修改 | S1 | cell-media.ts、validation-v2.ts、tests/course/cell-media.test.ts | 遗留单元格媒体解析审计基本正确；本轮修复遗留 bug（resolve 期间产生的单元格级 issue 未并入返回结果）、媒体语法单元格缺失文件不再回退为文字答案；补 A 列主媒体→item.media 行为测试 |
 | D-18 | 已修改 | S1 | cell-media.ts、validation-v2.ts、tests/course/cell-media.test.ts、tests/course/validation-v2.test.ts | 新增 `cellMediaCategory` 语法级类别判定；同格混类别/媒体+文字混写→`CELL_MEDIA_MIXED_KIND` error；含路径引用→`CELL_MEDIA_PATH` error；列内混合→在冲突单元格处报 `COLUMN_MEDIA_MIXED_KIND`（精确列+单元格）；`/` 变体解析与「变体不互为干扰项」经 generateQuestion 行为断言 |
-| D-19 | 未开始 | S2 | | |
-| D-20 | 未开始 | S2 | | |
-| D-21 | 未开始 | S2 | | |
+| D-19 | 已修改 | S2 | src/core/quiz/course-adapter.ts、generator.ts、question-set.ts；tests/quiz/header-rules.test.ts | 双向表头解析（首个 `/`、两侧必填）+ 校验阻断 + 正/反向题干用于 prompt；提交 `5512ae7` |
+| D-20 | 已修改 | S2 | src/core/quiz/scoring.ts；tests/quiz/scoring.test.ts、tests/quiz/header-rules.test.ts | `;` 分必答组、`/` 组内任选别名；多别名判对；媒体路径保持原子匹配；提交 `52941f5`、`66dd876` |
+| D-21 | 已修改 | S2 | src/core/quiz/question-set.ts、course-adapter.ts；tests/quiz/header-rules.test.ts | `$`＝仅作问题（只出反向题）、`*`＝仅作答案（只出正向题）；不替代 D-01；提交 `c3386a8` |
 | D-22 | 未开始 | S3 | | |
 | D-23 | 未开始 | S3 | | |
 | D-24 | 未开始 | S4 | | |
@@ -74,10 +76,44 @@
 - 与任务方案的偏差：无。
 - 风险或阻塞：S0 改动仍混在脏工作区未提交，ACCEPTANCE 由定时验收自动化接管。
 
+### 批次 S2（出题/判题扩展，本分支）
+
+- 开始/完成时间：2026-09-09 00:20 → 02:35
+- 提交序列（基线 `a674004` 之上）：`52941f5`(D-20) → `5512ae7`(D-19) → `c3386a8`(D-21) → `66dd876`(D-20 媒体路径回归修复)
+- 修改摘要：
+  - **D-20**：`evaluateAnswer` 重写为「必答组」语义——期望值每项是一个组说明，`/` 拆组内别名（归一化后集合去重）；提交串按 D-02 分隔符切分后，其 `/` 子别名参与组覆盖判定；组全部被覆盖且无组外别名 → fullyCorrect。`China/PRC; Asia` 接受 `China; Asia`、`PRC; Asia`、`China; PRC; Asia`；`A/B` 是一个组（提交 A 或 B 任一即对），不被拆成两个必答项。`splitAnswer` 未动。
+  - **D-20 回归修复（66dd876）**：媒体路径答案（`znawca-media://...` 或以图片/音频/视频扩展名结尾）含 `/` 但必须整体精确匹配，不参与别名拆分——否则 name-to-image 选择题选错图会共享路径段被误判对（tests/smoke/p0-acceptance 发现并复验）。
+  - **D-19**：`course-adapter.ts` 新增 `parseColumnTitle`（标记顺序 `#`→`$`/`*`→`正向 / 反向`）、`bidirectionalStems`（首个 `/` 分隔、两侧非空才有效）、`bidirectionalHeaderIssues`（仅 V2：非筛选列含名称列 B 的标题缺 `/` → `HEADER_BIDIRECTIONAL_MISSING`、任一侧空 → `HEADER_BIDIRECTIONAL_SIDE_EMPTY`，位置精确到 文件/工作表/第1行/列号）、`BidirectionalHeaderError`。`question-set.ts` 构建入口对非法 V2 表头抛 `BidirectionalHeaderError`（quiz 层阻断）；`generator.ts` promptFor 用正向侧（`名称 / 正向题干`）与反向侧（`属性值 / 反向题干`）。V1 标题（无 `/`）prompt 行为不变。
+  - **D-21**：`columnRole` 解析表头 `$`/`*`；`question-set.ts` 逐列出题时按角色过滤方向（`$` 跳过 name-to-property、`*` 跳过 property-to-name）；未声明列不受影响；歧义反向题仍走 D-01 的 `hasUniqueReverseAnswer` 抛错→skipped（有测试验证标记列不豁免歧义检查）。
+- 四条自动验收对应测试（tests/quiz）：
+  1. `China/PRC; Asia` 三种提交全对 → scoring.test.ts「accepts any single declared alias / several declared aliases」
+  2. `A/B` 不拆成两个必答项 → scoring.test.ts「does not split a slash group into two required answers」
+  3. 缺 `/`/单侧空标题阻断并报位置 → header-rules.test.ts「blocks a header without '/' and reports the exact header cell / with an empty side and names the empty side / also blocks an invalid name column header」
+  4. 「仅作答案」列不生成以该列为题干的反向题 → header-rules.test.ts「generates no reverse question that uses an answer-only (*) column as its stem」
+- 验证：`npm run typecheck` ✅；`npm test -- --run` ✅ 31 文件 217 项（含既有全量 smoke）；`npm run build` ✅。新增测试：header-rules.test.ts 15 项 + scoring.test.ts 6 项。
+- 与任务方案的偏差（按 DECISIONS 字面执行并记录）：
+  1. **导入侧接线缺口**：`loader.ts`/`validation-v2.ts` 不在 S2 允许修改范围，故「阻断导入」实现为 quiz 层 `buildCourseQuestionSet` 抛 `BidirectionalHeaderError`（issues 含文件/工作表/行/列）。`bidirectionalHeaderIssues` 已导出，导入侧接线只需在 `validateV2Worksheet` 各列解析处调用并把 error 纳入 canOpen=false（合并负责人/S1 一行事）。
+  2. 名称列 B1 按 D-15「名称双向题干」同样要求两侧必填（含进校验）；其正/反向文本暂未用于 media-to-name 的界面 prompt（AppShell 注释已注明该 V2 机制属后续批次）。
+  3. `$`/`*` 与 `$`＝仅作问题、`*`＝仅作答案 的对应取 DECISIONS 表述顺序的字面解释。
+- 已知风险：
+  1. 合并冲突面：S1 若在 v2 样例/测试中使用无 `/` 的表头（其现有 validation-v2.test.ts 用 "Name"/"Diet"），接线导入校验后需同步给样例表头补 `/`，否则 v2 样例课程将被 D-19 阻断。
+  2. `hasUniqueReverseAnswer` 的签名比较未做别名集合归一（`China/PRC` 与 `PRC/China` 视为不同值）——D-01 字面执行，未扩大范围；如需归一应由主控决策。
+  3. AppShell ReplayView 用精确集合匹配标记正确选项（AppShell.tsx:925），对多值/别名答案的回放标记本就不精确（基线既有行为，非本轮引入；AppShell 不在 S2 允许范围，未动）。
+  4. 若 loader 接线前某 V2 课程带非法表头被打开，`buildCourseQuestionSet` 抛错会使 AppShell 崩溃（防御性阻断的代价；接线后正常路径不会发生）。
+  5. 环境备注：本会话沙箱多次拦截 vitest 全量单命令（node_modules junction 下 `.vite-temp` 写入被判定批量删除），曾以分批运行获得同等覆盖（quiz/course/session 目录 + smoke 两批，全部通过），最终原样 `npm test -- --run` 复跑成功。
+
 ## 4. 最终验证
 
-- S1（本分支 `znawca15-v2-model`，2026-09-10 00:55）：typecheck ✅｜`npm test -- --run` 31 文件 208 项 ✅｜build ✅（37 modules）。S2~S5 完成后由对应分支/主干回填。
+- S1（分支 `znawca15-v2-model`，2026-09-10 00:55）：typecheck ✅｜`npm test -- --run` 31 文件 208 项 ✅｜build ✅（37 modules）。
+- S2（分支 `znawca15-quiz-rules`，2026-09-09 02:35）：`npm run typecheck` ✅ ／ `npm test -- --run` 31 文件 217 项全通过 ✅ ／ `npm run build` 37 modules ✅
+- S2 复核（2026-09-09 02:40–02:55，接手工人独立复验，未改源码）：
+  - 逐项审计 D-19/D-20/D-21 实现与测试映射，四条自动验收均有真实断言且与 DECISIONS 字面一致；未发现越权修改（`git diff a674004..HEAD` 仅触及 `src/core/quiz/{scoring,generator,question-set,course-adapter}.ts` 与 `tests/quiz/{scoring,header-rules}.test.ts`）。
+  - `npm run typecheck` ✅；`npx vitest run tests/quiz` ✅ 4 文件 49 项（含 S2 新增 21 项）。
+  - `npm test -- --run` 全量与 `npm run build` 在该会话被沙箱拦截，以 02:35 全绿记录 + typecheck/quiz 定向结果为准；由主控在主工作区合并后复跑全量门禁（见 §4 合并验证）。
+- 主干合并验证（2026-09-09，主控）：S1+S2 合并后在主工作区复跑 `npm run typecheck` + `npm test -- --run` + `npm run build`，结果回填于此。
 
 ## 5. 最终交接
 
-（S1~S5 完成后回填）
+- S2 交付：本 CHANGELOG、4 个提交（`52941f5`/`5512ae7`/`c3386a8`/`66dd876`）、修改文件 `src/core/quiz/{scoring,generator,question-set,course-adapter}.ts`、新增 `tests/quiz/header-rules.test.ts` 及 `tests/quiz/scoring.test.ts` 扩展。`filter.ts` 审计后无需修改。
+- 未 git push（按硬约束）。
+- 按本任务硬约束未修改 NIGHT-OPS.md 状态板（任务指令明确禁改），状态板更新由主控执行。

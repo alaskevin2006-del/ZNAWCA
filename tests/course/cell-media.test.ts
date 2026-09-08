@@ -2,7 +2,27 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { scanCellMedia } from "../../src/core/course/cell-media.js";
+import { cellMediaCategory, scanCellMedia } from "../../src/core/course/cell-media.js";
+
+describe("cellMediaCategory (syntax-level, D-17/D-18)", () => {
+  it("classifies a single or multi-variant same-kind reference", () => {
+    expect(cellMediaCategory("flag.png")).toEqual({ kind: "image" });
+    expect(cellMediaCategory("flag-front.png/flag-waving.jpg")).toEqual({ kind: "image" });
+    expect(cellMediaCategory("call.mp3")).toEqual({ kind: "audio" });
+    expect(cellMediaCategory("clip.mp4")).toEqual({ kind: "video" });
+  });
+
+  it("classifies plain text as text", () => {
+    expect(cellMediaCategory("insects; seeds")).toBe("text");
+    expect(cellMediaCategory("China/PRC; Asia")).toBe("text");
+    expect(cellMediaCategory("")).toBe("text");
+  });
+
+  it("classifies mixed kinds and media-with-text cells as mixed", () => {
+    expect(cellMediaCategory("flag.jpg/call.mp3")).toBe("mixed");
+    expect(cellMediaCategory("cuckoo.jpg/insects")).toBe("mixed");
+  });
+});
 
 describe("cell media resolver", () => {
   let root: string;
@@ -65,14 +85,37 @@ describe("cell media resolver", () => {
     expect(issues).toContainEqual(expect.objectContaining({ code: "CELL_MEDIA_CORRUPT" }));
   });
 
-  it("rejects a cell that mixes different media kinds", async () => {
+  it("rejects a cell that mixes different media kinds with an error", async () => {
     const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
     const { resolve, issues } = await withMedia({ "flag.jpg": jpeg, "call.mp3": "ID3" });
     const assets = await resolve("flag.jpg/call.mp3", "Birds", 2, 1, "Flag");
     expect(assets).toEqual([]);
     expect(issues).toContainEqual(expect.objectContaining({
       code: "CELL_MEDIA_MIXED_KIND",
-      severity: "warning",
+      severity: "error",
+      location: expect.objectContaining({ row: 2, column: 1, columnName: "Flag" }),
+    }));
+  });
+
+  it("rejects a cell that mixes a media reference with plain text (D-18)", async () => {
+    const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
+    const { resolve, issues } = await withMedia({ "cuckoo.jpg": jpeg });
+    const assets = await resolve("cuckoo.jpg/insects", "Birds", 2, 3, "Diet");
+    expect(assets).toEqual([]);
+    expect(issues).toContainEqual(expect.objectContaining({
+      code: "CELL_MEDIA_MIXED_KIND",
+      severity: "error",
+      location: expect.objectContaining({ row: 2, column: 3, columnName: "Diet" }),
+    }));
+  });
+
+  it("rejects a media reference that contains a path", async () => {
+    const { resolve, issues } = await withMedia({});
+    const assets = await resolve("media\\flag.png", "Birds", 2, 1);
+    expect(assets).toEqual([]);
+    expect(issues).toContainEqual(expect.objectContaining({
+      code: "CELL_MEDIA_PATH",
+      severity: "error",
       location: expect.objectContaining({ row: 2, column: 1 }),
     }));
   });

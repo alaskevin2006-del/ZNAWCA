@@ -1,6 +1,6 @@
-import { basename, extname } from "node:path";
+import { join } from "node:path";
 import { normalizeKey, normalizeWhitespace, splitValues } from "./normalization.js";
-import { scanCellMedia } from "./cell-media.js";
+import { cellMediaCategory, scanCellMedia } from "./cell-media.js";
 import type {
   Course,
   CourseColumn,
@@ -25,7 +25,8 @@ export interface ValidatedV2Worksheet {
  *
  * 归一化到 Course：名称列 index=2，属性列 index>=3，`nameColumnIndex=2`，
  * `displayTitle` 取 A1，`id` 沿用「基础名_语言」以隔离学习记录。
- * 媒体引用经 `scanCellMedia` 解析（D-17/D-18）。
+ * 媒体引用经 `scanCellMedia` 解析（D-17/D-18）；列内混合文字与媒体类别时
+ * 导入失败并精确报出列与冲突单元格；朗读目录为共享 `speech/<lang>/`（D-16）。
  */
 export async function validateV2Worksheet(
   worksheet: WorksheetData,
@@ -42,8 +43,16 @@ export async function validateV2Worksheet(
     return { issues };
   }
 
-  const { resolve, issues: mediaIssues } = await scanCellMedia(courseDirectory);
+  const { resolve, issues: mediaIssues } = await scanCellMedia(courseDirectory, workbookPath);
   issues.push(...mediaIssues);
+  // resolve 在逐行解析期间会继续向 mediaIssues 追加单元格级问题；在错误判定前统一并入。
+  let mediaIssuesCopied = mediaIssues.length;
+  const flushMediaIssues = (): void => {
+    if (mediaIssues.length > mediaIssuesCopied) {
+      issues.push(...mediaIssues.slice(mediaIssuesCopied));
+      mediaIssuesCopied = mediaIssues.length;
+    }
+  };
 
   const displayTitle = normalizeWhitespace(cells.get(key(1, 1))?.value ?? "");
 
@@ -77,6 +86,11 @@ export async function validateV2Worksheet(
 
   const items: CourseItem[] = [];
   const seenNames = new Map<string, number>();
+  // D-18：逐列记录非空单元格的语法类别（text/image/audio/video），mixed 已由 resolve 逐格报错。
+  const columnCellCategories = new Map<number, { row: number; category: string }[]>();
+  const trackCategory = (column: number, row: number, category: string): void => {
+    (columnCellCategories.get(column) ?? columnCellCategories.set(column, []).get(column)!).push({ row, category });
+  };
   for (let row = 2; row <= maxRow; row += 1) {
     const rowCells = worksheet.cells.filter((cell) => cell.row === row);
     if (rowCells.every((cell) => normalizeWhitespace(cell.value) === "")) continue;
@@ -112,19 +126,21 @@ export async function validateV2Worksheet(
     seenNames.set(id, items.length);
 
     // A 列（index=1）＝ 主媒体引用。
-    const mainMedia = await resolve(cells.get(key(row, 1))?.value ?? "", worksheet.name, row, 1);
+    const mainMediaRaw = cells.get(key(row, 1))?.value ?? "";
+    if (mainMediaRaw.trim()) trackCategory(1, row, categoryLabel(cellMediaCategory(mainMediaRaw)));
+    const mainMedia = await resolve(mainMediaRaw, worksheet.name, row, 1);
 
     const rowValues: Record<string, readonly string[]> = {};
     const cellMedia: Record<string, readonly MediaAsset[]> = {};
     for (const column of columns.filter((entry) => entry.index > nameColumnIndex)) {
       const raw = cells.get(key(row, column.index))?.value ?? "";
-      const media = await resolve(raw, worksheet.name, row, column.index, column.title);
-      if (media.length > 0) {
-        // 该单元格是媒体引用（D-17）：属性单元格媒体只表达该属性，不进入文本答案。
-        cellMedia[column.title] = media;
-        rowValues[column.title] = [];
-      } else {
+      if (raw.trim()) trackCategory(column.index, row, categoryLabel(cellMediaCategory(raw)));
+      // 语法上是媒体引用（D-17）就按媒体单元格处理：缺失/损坏只 warning，不回退成文字答案。
+      if (cellMediaCategory(raw) === "text") {
         rowValues[column.title] = splitValues(raw);
+      } else {
+        cellMedia[column.title] = await resolve(raw, worksheet.name, row, column.index, column.title);
+        rowValues[column.title] = [];
       }
     }
     for (const column of columns.filter((entry) => entry.index > nameColumnIndex && !entry.filterOnly)) {
@@ -143,20 +159,30 @@ export async function validateV2Worksheet(
     });
   }
 
-  // D-18：同一属性列的单元格须统一为文字或同一种媒体类别，混合时精确报错。
-  for (const column of columns.filter((entry) => entry.index > nameColumnIndex)) {
-    const mediaKinds = new Set<string>();
-    let hasText = false;
-    for (const item of items) {
-      const cellAssets = item.cellMedia?.[column.title] ?? [];
-      if (cellAssets.length > 0) {
-        for (const asset of cellAssets) mediaKinds.add(asset.kind);
-      } else if ((item.values[column.title] ?? []).length > 0) {
-        hasText = true;
+  // D-18：每列非空单元格须统一为文字或同一种媒体类别；混合时导入失败并精确到列与单元格。
+  // 名称列 B 语义上恒为文字，不参与该检查；mixed 单元格已由 resolve 逐格报错。
+  for (const [columnIndex, cellsWithCategory] of columnCellCategories) {
+    const columnTitle = columns.find((column) => column.index === columnIndex)?.title;
+    let baseline: string | undefined;
+    for (const { row, category } of cellsWithCategory) {
+      if (category === "mixed") continue;
+      if (baseline === undefined) {
+        baseline = category;
+        continue;
       }
-    }
-    if (mediaKinds.size > 1 || (mediaKinds.size > 0 && hasText)) {
-      issues.push(issue("error", "COLUMN_MEDIA_MIXED_KIND", `Column '${column.title}' mixes media kinds or media with text.`, "Keep each column a single media kind, or text only.", worksheet.file, worksheet.name, 1, column.index, column.title));
+      if (category !== baseline) {
+        issues.push(issue(
+          "error",
+          "COLUMN_MEDIA_MIXED_KIND",
+          `Cell in row ${row} is '${category}' but the rest of ${columnTitle ? `column '${columnTitle}'` : `column ${columnLetters(columnIndex)}`} is '${baseline}'.`,
+          "Keep every non-empty cell in a column either plain text or a single media kind; move other kinds to another column.",
+          worksheet.file,
+          worksheet.name,
+          row,
+          columnIndex,
+          columnTitle,
+        ));
+      }
     }
   }
 
@@ -166,6 +192,7 @@ export async function validateV2Worksheet(
   if (columns.filter((column) => column.index > nameColumnIndex && !column.filterOnly).length === 0) {
     issues.push(issue("error", "NO_LEARNING_CONTENT", "Course has no question columns.", "Add a normal question column.", worksheet.file, worksheet.name));
   }
+  flushMediaIssues();
   if (issues.some((entry) => entry.severity === "error")) return { issues };
 
   const id = normalizeKey(`${language.base}_${language.language}`);
@@ -183,9 +210,15 @@ export async function validateV2Worksheet(
       sheetName: worksheet.name,
       columns,
       items,
+      // D-16：该语言的朗读音频目录 speech/<lang>/（S3 负责播放，缺失文件静默跳过）。
+      speechDirectory: join(courseDirectory, "speech", language.language),
     },
     issues,
   };
+}
+
+function categoryLabel(category: ReturnType<typeof cellMediaCategory>): string {
+  return typeof category === "object" ? category.kind : category;
 }
 
 function indexCells(cells: readonly WorksheetCell[]): Map<string, WorksheetCell> {

@@ -127,6 +127,9 @@ export function validateWorksheet(
     course: {
       id: normalizeKey(title),
       title,
+      // V1 只读兼容：名称在 A 列、整行媒体按目录扫描；格式版本显式标识，不靠猜测切换。
+      formatVersion: "v1",
+      nameColumnIndex: 1,
       directory: courseDirectory,
       workbookPath,
       sheetName: worksheet.name,

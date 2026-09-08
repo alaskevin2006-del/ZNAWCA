@@ -57,17 +57,80 @@ export async function createMergedCellFixture(parent: string): Promise<{ directo
   return { directory, workbook };
 }
 
-function createWorkbook(worksheetRows: readonly (readonly string[])[]): Buffer {
+function createWorkbook(worksheetRows: readonly (readonly string[])[], sheetName = "Fixture"): Buffer {
   const rowsXml = worksheetRows.map((row, rowIndex) =>
     `<row r="${rowIndex + 1}">${row.map((value, columnIndex) =>
       `<c r="${columnName(columnIndex + 1)}${rowIndex + 1}" t="inlineStr"><is><t>${escapeXml(value)}</t></is></c>`,
     ).join("")}</row>`,
   ).join("");
   return createStoredZip({
-    "xl/workbook.xml": `<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Fixture" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+    "xl/workbook.xml": `<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${escapeXml(sheetName)}" sheetId="1" r:id="rId1"/></sheets></workbook>`,
     "xl/_rels/workbook.xml.rels": `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>`,
     "xl/worksheets/sheet1.xml": `<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${rowsXml}</sheetData></worksheet>`,
   });
+}
+
+/** 覆写一个已存在（或新建）的工作簿，用于构造异常场景。 */
+export async function writeWorkbookRows(
+  workbookPath: string,
+  worksheetRows: readonly (readonly string[])[],
+  sheetName = "Fixture",
+): Promise<void> {
+  await writeFile(workbookPath, createWorkbook(worksheetRows, sheetName));
+}
+
+// ---- V2 最小多语言样例（D-15~D-18）----
+
+export const PNG_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
+export const JPEG_BYTES = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
+export const MP3_BYTES = Buffer.from("ID3", "utf8");
+
+const v2EngRows = [
+  ["Birds of Europe", "Name", "Diet"],
+  ["cuckoo.jpg", "Common Cuckoo", "insects"],
+  ["sparrow.png/sparrow-flying.jpg", "House Sparrow", "seeds"],
+  ["gull.jpg", "European Herring Gull", "fish"],
+];
+
+const v2RuRows = [
+  ["Птицы Европы", "Название", "Питание"],
+  ["cuckoo.jpg", "Обыкновенная кукушка", "насекомые"],
+  ["sparrow.png/sparrow-flying.jpg", "Домовый воробей", "семена"],
+  ["gull.jpg", "Серебристая чайка", "рыба"],
+];
+
+/**
+ * 最小多语言 V2 课程样例：`Birds/` 目录含 `Birds_Eng.xlsx`、`Birds_Ru.xlsx`（按基础名+语言后缀分组），
+ * 共享 `media/` 放内容媒体（两种语言引用同一张 `cuckoo.jpg`；`sparrow` 用 `/` 分隔两个图片变体），
+ * `speech/Eng/`、`speech/Ru/` 为分语言朗读目录。
+ */
+export async function createMultilingualCourseFixture(parent: string): Promise<{
+  directory: string;
+  mediaDirectory: string;
+  engWorkbook: string;
+  ruWorkbook: string;
+}> {
+  const directory = join(parent, "Birds");
+  const mediaDirectory = join(directory, "media");
+  await mkdir(mediaDirectory, { recursive: true });
+  const engWorkbook = join(directory, "Birds_Eng.xlsx");
+  const ruWorkbook = join(directory, "Birds_Ru.xlsx");
+  await writeFile(engWorkbook, createWorkbook(v2EngRows, "Birds"));
+  await writeFile(ruWorkbook, createWorkbook(v2RuRows, "Birds"));
+  const sharedMedia: Record<string, Buffer> = {
+    "cuckoo.jpg": JPEG_BYTES,
+    "sparrow.png": PNG_BYTES,
+    "sparrow-flying.jpg": JPEG_BYTES,
+    "gull.jpg": JPEG_BYTES,
+  };
+  for (const [name, bytes] of Object.entries(sharedMedia)) {
+    await writeFile(join(mediaDirectory, name), bytes);
+  }
+  await mkdir(join(directory, "speech", "Eng"), { recursive: true });
+  await mkdir(join(directory, "speech", "Ru"), { recursive: true });
+  await writeFile(join(directory, "speech", "Eng", "B2.mp3"), MP3_BYTES);
+  await writeFile(join(directory, "speech", "Ru", "B2.mp3"), MP3_BYTES);
+  return { directory, mediaDirectory, engWorkbook, ruWorkbook };
 }
 
 function createStoredZip(entries: Record<string, string>): Buffer {

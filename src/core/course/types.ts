@@ -68,6 +68,8 @@ export interface Course {
   readonly displayTitle?: string;
   /** V2：内容语言代码（如 `Eng`），V1 缺省。 */
   readonly languageCode?: string;
+  /** V2：该内容语言的朗读音频目录 `speech/<lang>/`（D-16/D-22，S3 负责播放）。 */
+  readonly speechDirectory?: string;
   /** 格式版本：v1=名称目录/整行媒体，v2=单元格媒体/多语言工作簿。 */
   readonly formatVersion?: CourseFormatVersion;
   /** 名称列的实际 Excel 列号：V1 为 1（A 列），V2 为 2（B 列）。缺省视为 1。 */

@@ -124,8 +124,14 @@ describe("course loader", () => {
   it("loads multiple language-suffixed workbooks as separate course versions", async () => {
     const langRoot = await mkdtemp(join(tmpdir(), "znawca-lang-"));
     try {
-      const { directory } = await createCourseFixture(langRoot, "Birds", "Birds_Eng.xlsx");
-      await createCourseFixture(langRoot, "Birds", "Birds_Ru.xlsx");
+      // V2 双向表头（D-19）：缺 `/` 的表头会在导入阶段被阻断（补充任务 B）。
+      const rows = [
+        ["Birds", "Name / Bird", "Diet / Food"],
+        ["", "Common Cuckoo", "insects"],
+        ["", "European Herring Gull", "fish"],
+      ] as const;
+      const { directory } = await createCourseFixture(langRoot, "Birds", "Birds_Eng.xlsx", rows);
+      await createCourseFixture(langRoot, "Birds", "Birds_Ru.xlsx", rows);
       const reports = await loadCourseVersions(directory);
 
       expect(reports).toHaveLength(2);

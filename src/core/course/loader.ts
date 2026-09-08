@@ -5,6 +5,7 @@ import { parseLanguageWorkbookName } from "./language.js";
 import { normalizeKey } from "./normalization.js";
 import { scanCourseMedia } from "./media.js";
 import type { CourseIssue, CourseLoadReport } from "./types.js";
+import { bidirectionalHeaderIssues } from "../quiz/course-adapter.js";
 import { validateWorksheet } from "./validation.js";
 import { validateV2Worksheet } from "./validation-v2.js";
 import { readFirstWorksheet, XlsxReadError } from "./xlsx/xlsx-adapter.js";
@@ -92,6 +93,9 @@ async function loadWorkbookAsCourse(
       const validated = await validateV2Worksheet(worksheet, courseDirectory, workbookPath, language);
       const feedbackSounds = await scanFeedbackSounds(courseDirectory);
       const issues = [...validated.issues];
+      // D-19 导入侧接线：非法 V2 双向表头（缺 `/` 或任一侧为空）按 error 计入
+      // 课程导入 issues，使 canOpen=false；quiz 层的 BidirectionalHeaderError 仍是兜底。
+      if (validated.course) issues.push(...bidirectionalHeaderIssues(validated.course));
       if (!validated.course) return { issues, canOpen: false };
       return { course: { ...validated.course, feedbackSounds }, issues, canOpen: !issues.some((entry) => entry.severity === "error") };
     }

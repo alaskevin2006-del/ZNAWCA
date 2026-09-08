@@ -128,7 +128,7 @@ describe("V2 mixed media category rejection (D-18)", () => {
   it("fails import and points at the exact column and cell mixing media with text", async () => {
     const { directory, engWorkbook } = await createMultilingualCourseFixture(root);
     await writeWorkbookRows(engWorkbook, [
-      ["Birds of Europe", "Name", "Diet"],
+      ["Birds of Europe", "Name / Bird", "Diet / Food"],
       ["cuckoo.jpg", "Common Cuckoo", "cuckoo.jpg"],
       ["gull.jpg", "European Herring Gull", "fish"],
     ]);
@@ -139,7 +139,7 @@ describe("V2 mixed media category rejection (D-18)", () => {
     expect(eng.issues).toContainEqual(expect.objectContaining({
       code: "COLUMN_MEDIA_MIXED_KIND",
       severity: "error",
-      location: expect.objectContaining({ file: engWorkbook, row: 3, column: 3, columnName: "Diet" }),
+      location: expect.objectContaining({ file: engWorkbook, row: 3, column: 3, columnName: "Diet / Food" }),
     }));
     // 另一语言版本不受影响，仍可打开。
     expect(byLanguage(reports, "Ru").canOpen).toBe(true);
@@ -148,7 +148,7 @@ describe("V2 mixed media category rejection (D-18)", () => {
   it("fails import when a single cell mixes an image reference with plain text", async () => {
     const { directory, engWorkbook } = await createMultilingualCourseFixture(root);
     await writeWorkbookRows(engWorkbook, [
-      ["Birds of Europe", "Name", "Diet"],
+      ["Birds of Europe", "Name / Bird", "Diet / Food"],
       ["cuckoo.jpg", "Common Cuckoo", "cuckoo.jpg/insects"],
       ["gull.jpg", "European Herring Gull", "fish"],
     ]);
@@ -158,7 +158,7 @@ describe("V2 mixed media category rejection (D-18)", () => {
     expect(eng.issues).toContainEqual(expect.objectContaining({
       code: "CELL_MEDIA_MIXED_KIND",
       severity: "error",
-      location: expect.objectContaining({ file: engWorkbook, row: 2, column: 3, columnName: "Diet" }),
+      location: expect.objectContaining({ file: engWorkbook, row: 2, column: 3, columnName: "Diet / Food" }),
     }));
   });
 });

@@ -86,14 +86,14 @@ export const JPEG_BYTES = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
 export const MP3_BYTES = Buffer.from("ID3", "utf8");
 
 const v2EngRows = [
-  ["Birds of Europe", "Name", "Diet"],
+  ["Birds of Europe", "Name / Bird", "Diet / Food"],
   ["cuckoo.jpg", "Common Cuckoo", "insects"],
   ["sparrow.png/sparrow-flying.jpg", "House Sparrow", "seeds"],
   ["gull.jpg", "European Herring Gull", "fish"],
 ];
 
 const v2RuRows = [
-  ["Птицы Европы", "Название", "Питание"],
+  ["Птицы Европы", "Название / Птица", "Питание / Еда"],
   ["cuckoo.jpg", "Обыкновенная кукушка", "насекомые"],
   ["sparrow.png/sparrow-flying.jpg", "Домовый воробей", "семена"],
   ["gull.jpg", "Серебристая чайка", "рыба"],

@@ -1,5 +1,11 @@
 import type { Course } from "../course/types.js";
-import { courseObjects, filteredCourseObjects, skippedQuestionFields } from "./course-adapter.js";
+import {
+  bidirectionalHeaderIssues,
+  BidirectionalHeaderError,
+  courseObjects,
+  filteredCourseObjects,
+  skippedQuestionFields,
+} from "./course-adapter.js";
 import { generateQuestion, QuestionGenerationError } from "./generator.js";
 import type {
   FilterSelection,
@@ -57,6 +63,10 @@ const mediaKinds: readonly MediaKind[] = ["image", "audio", "video"];
  * ambiguity checks and choice degradation have one source of truth.
  */
 export function buildCourseQuestionSet(request: BuildCourseQuestionSetRequest): CourseQuestionSet {
+  // D-19：V2 双向表头缺失或任一侧为空 → 阻断出题并携带精确位置（导入侧由
+  // loader 接线同一校验；此处是 quiz 层的兜底阻断）。
+  const headerIssues = bidirectionalHeaderIssues(request.course);
+  if (headerIssues.length > 0) throw new BidirectionalHeaderError(headerIssues);
   const selections = request.selections ?? [];
   const directions = new Set(request.directions ?? allDirections);
   const requestedKinds = request.requestedKinds ?? ["input", "choice"];
@@ -64,9 +74,8 @@ export function buildCourseQuestionSet(request: BuildCourseQuestionSetRequest): 
   const filteredObjects = filteredCourseObjects(request.course, selections);
   const skippedFields = new Set(skippedQuestionFields(request.course, selections));
   const nameColumnIndex = request.course.nameColumnIndex ?? 1;
-  const questionFields = request.course.columns
-    .filter((column) => column.index > nameColumnIndex && !column.filterOnly && !skippedFields.has(column.title))
-    .map((column) => column.title);
+  const questionColumns = request.course.columns
+    .filter((column) => column.index > nameColumnIndex && !column.filterOnly && !skippedFields.has(column.title));
   const questions: Question[] = [];
   const skipped: SkippedQuestion[] = [];
 
@@ -104,10 +113,10 @@ export function buildCourseQuestionSet(request: BuildCourseQuestionSetRequest): 
   };
 
   for (const target of filteredObjects) {
-    for (const field of questionFields) {
+    for (const column of questionColumns) {
       for (const direction of ["name-to-property", "property-to-name"] as const) {
         if (!directions.has(direction)) continue;
-        for (const kind of requestedKinds) add(target.id, direction, kind, field);
+        for (const kind of requestedKinds) add(target.id, direction, kind, column.title);
       }
     }
     for (const mediaKind of mediaKinds) {

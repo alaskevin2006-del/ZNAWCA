@@ -9,6 +9,7 @@ import {
   mathRandomSource,
   normalizeText,
 } from "./types.js";
+import { bidirectionalStems } from "./course-adapter.js";
 
 export interface GenerateQuestionRequest {
   readonly target: CourseObject;
@@ -62,8 +63,13 @@ function answerFor(object: CourseObject, field: string | undefined, direction: Q
 }
 
 function promptFor(object: CourseObject, field: string | undefined, direction: QuestionDirection): string {
-  if (direction === "name-to-property") return `${object.name} / ${field ?? ""}`;
-  if (direction === "property-to-name") return (object.attributes[field ?? ""] ?? []).join("; ");
+  // D-19：带 `/` 的双向表头给出每个方向各自的题干；无 `/`（V1 兼容）沿用旧行为。
+  const stems = field ? bidirectionalStems(field) : undefined;
+  if (direction === "name-to-property") return `${object.name} / ${stems ? stems.forward : field ?? ""}`;
+  if (direction === "property-to-name") {
+    const values = (object.attributes[field ?? ""] ?? []).join("; ");
+    return stems ? `${values} / ${stems.reverse}` : values;
+  }
   if (direction.startsWith("name-to-")) return object.name;
   return "Identify the object";
 }

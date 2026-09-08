@@ -31,7 +31,7 @@
 
 | 分支 | 内容 | 允许修改 | 依赖 | 与谁并行 |
 |---|---|---|---|---|
-| `codex/p2-completion`（主干） | S0 完成基线 + 集成验收 | 仅文档/验收 | — | — |
+| `znawca15-trunk`（主干） | S0 完成基线 + 集成验收 | 仅文档/验收 | — | — |
 | `znawca15-v2-model` | S1 Excel V2 数据模型 | course 目录全套（loader/media/validation/types/organizer/xlsx-adapter） | 主干 | 与 `quiz-rules` 并行 |
 | `znawca15-quiz-rules` | S2 出题/判题扩展 | quiz 目录全套 | 主干 | 与 `v2-model` 并行 |
 | `znawca15-audio-progress` | S3 朗读 + S4 进度 | loader/media/types/main/media-protocol/AppShell/progress/session | **v2-model 之后** | 与 `quiz-rules` 并行 |
@@ -49,9 +49,11 @@
 3. 全绿且 CHANGELOG/ACCEPTANCE 逐项通过 → 验收通过，停止推进。
 4. 任一不通过 → 自动化产出 `NEXT-PUSH.md`（待修复文件 + 决策 ID + 验收标准 + 顺序），主干据此继续推进，次日再验。
 
-## 5. 当前状态
+## 5. 当前状态（2026-09-09 00:15 主控更新）
 
-- S0 返工五项在代码层面已全部完成（跨课程隔离测试、2×2 压缩、提示音模块拆分、四路径集成测试、MEDIA_MISSING），typecheck/test 175 项/build/vite dev 全绿，已固化为主干基线提交 `adaf313`。
-- 分支已创建（均指向 S0 完成态 `adaf313`）：`znawca15-v2-model`、`znawca15-quiz-rules`、`znawca15-audio-progress`。
-- 注：本机 Git 环境不支持带 `/` 的分支名（ref 落盘失败导致 HEAD 悬空），故分支名改用 `-` 分隔。
-- 下一步：在 `znawca15-v2-model` 分支上实施 S1。
+- **git 修复**：原仓库对象库部分缺失（声称的 `adaf313` 基线树不完整、18 个 `codex/*` 引用悬空、无任何可续接提交）。主控已从 S0 完成态工作树重建孤儿基线 `a674004`，删除坏引用（`packed-refs` 备份于 `.git/refs-backup-20260908/`），`main` 重指基线。
+- 分支就绪：`znawca15-trunk`（主工作区）、`znawca15-v2-model`、`znawca15-quiz-rules`、`znawca15-audio-progress` 均指向 `a674004`；开发用 worktree 在 `C:\Users\Kevin\Desktop\ZNAWCA-night\{s1,s2,s3}`（node_modules 为 junction）。
+- 分支名用 `-` 分隔（本机 `/` 分支名 ref 落盘失败），主干名由 `codex/p2-completion` 改为 `znawca15-trunk`。
+- 工作树已存在前一会话遗留的 `cell-media.ts`、`language.ts`、`validation-v2.ts` 及配套测试（S1 部分动工，未验收），S1 工人须先审计再续作。
+- 夜间加急流水线（2026-09-09 07:00 截止）的执行细节、时间表与状态板见 `NIGHT-OPS.md`。
+- 下一步：S1（`znawca15-v2-model`）与 S2（`znawca15-quiz-rules`）并行实施。

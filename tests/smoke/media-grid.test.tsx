@@ -59,7 +59,7 @@ describe("D-11 media choice grid", () => {
   it("marks four image options with the media grid and renders selectable options", async () => {
     installSmokeCourse(defaultLocalState(), mediaCourse);
     await beginChoiceSession(mediaCourse, "Name to image");
-    expect(screen.getByText("Question 1 of 4")).toBeVisible();
+    expect(screen.getByText("0 / 4 mastered")).toBeVisible();
     const fieldset = screen.getByRole("group", { name: "Your answer" });
     expect(fieldset.className).toContain("media-grid");
     expect(fieldset.querySelectorAll("img")).toHaveLength(4);
@@ -73,7 +73,7 @@ describe("D-11 media choice grid", () => {
   it("marks four audio options with the media grid and keeps audio controls operable", async () => {
     installSmokeCourse(defaultLocalState(), mediaCourse);
     await beginChoiceSession(mediaCourse, "Name to audio");
-    expect(screen.getByText("Question 1 of 4")).toBeVisible();
+    expect(screen.getByText("0 / 4 mastered")).toBeVisible();
     const fieldset = screen.getByRole("group", { name: "Your answer" });
     expect(fieldset.className).toContain("media-grid");
     const controls = fieldset.querySelectorAll("audio");
@@ -88,7 +88,7 @@ describe("D-11 media choice grid", () => {
   it("keeps three media options on two rows with the grid mark", async () => {
     installSmokeCourse(defaultLocalState(), threeItemMediaCourse);
     await beginChoiceSession(threeItemMediaCourse, "Name to image");
-    expect(screen.getByText("Question 1 of 3")).toBeVisible();
+    expect(screen.getByText("0 / 3 mastered")).toBeVisible();
     const fieldset = screen.getByRole("group", { name: "Your answer" });
     expect(fieldset.className).toContain("media-grid");
     expect(within(fieldset).getAllByRole("radio")).toHaveLength(3);
@@ -98,7 +98,7 @@ describe("D-11 media choice grid", () => {
   it("does not mark plain text choice questions", async () => {
     installSmokeCourse(defaultLocalState(), mediaCourse);
     await beginChoiceSession(mediaCourse, "Name to property");
-    expect(screen.getByText("Question 1 of 8")).toBeVisible();
+    expect(screen.getByText("0 / 8 mastered")).toBeVisible();
     const fieldset = screen.getByRole("group", { name: "Your answer" });
     expect(fieldset.className).not.toContain("media-grid");
     expect(within(fieldset).getAllByRole("radio")).toHaveLength(4);
@@ -108,7 +108,7 @@ describe("D-11 media choice grid", () => {
   it("marks four video options with the media grid (D-25)", async () => {
     installSmokeCourse(defaultLocalState(), mediaCourse);
     await beginChoiceSession(mediaCourse, "Name to video");
-    expect(screen.getByText("Question 1 of 4")).toBeVisible();
+    expect(screen.getByText("0 / 4 mastered")).toBeVisible();
     const fieldset = screen.getByRole("group", { name: "Your answer" });
     expect(fieldset.className).toContain("media-grid");
     expect(fieldset.querySelectorAll("video")).toHaveLength(4);

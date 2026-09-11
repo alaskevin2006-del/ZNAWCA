@@ -37,12 +37,14 @@ describe("D-24 testing progress unit display", () => {
     expect(screen.getByText("1 / 8 units · 7 remaining")).toBeVisible();
   });
 
-  it("does not show unit progress during learning sessions", async () => {
+  // D-26：Learning 同样显示进度单位（已掌握/剩余），不再显示被问次数。
+  it("shows mastered and remaining units during learning sessions", async () => {
     installSmokeCourse(defaultLocalState(), smokeCourse);
     render(<AppShell />);
     fireEvent.click(await screen.findByRole("button", { name: /Open course/ }));
     fireEvent.click(screen.getByRole("button", { name: /Begin learning/i }));
-    expect(await screen.findByText("Question 1 of 8")).toBeVisible();
-    expect(screen.queryByText(/units · \d+ remaining/)).toBeNull();
+    expect(await screen.findByText("0 / 8 mastered")).toBeVisible();
+    expect(screen.getByText("0 / 8 units · 8 remaining")).toBeVisible();
+    expect(screen.queryByText(/Question \d+ of \d+/)).toBeNull();
   });
 });

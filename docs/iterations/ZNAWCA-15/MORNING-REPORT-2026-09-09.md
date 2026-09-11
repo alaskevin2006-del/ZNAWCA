@@ -66,26 +66,34 @@
 | 项目 | 状态 | 原因 |
 |---|---|---|
 | S5 阿拉伯语/俄语界面文案（D-23 之后） | 未实施 | DECISIONS §4 第 5 条明确排除：「阿拉伯语/俄语界面文案（S5，延后至客户专家定稿）」。客户专家定稿后再单独修改。 |
-| 波兰语两条文案措辞 | 未按客户指定 | 见 §4 待客户确认。 |
+| 波兰语两条文案措辞 | **已澄清（无遗留）** | 反馈1 §⑦ 图文按顺序核对（P106/P108/P114/P116/P118/P121），客户在原文中已把目标措辞全部列清；当前代码已按客户原文实现，无「待确认」项（详见 §4 已澄清）。 |
 
-## 4. 遗留风险与待客户确认
+## 4. 已澄清与遗留风险
 
-### 待客户确认（不得擅改）
-**波兰语两条文案**，位于 `src/renderer/app-shell/AppShell.tsx:719` 的 `setupCopy.pl`：
+### 已澄清：波兰语两条文案
 
-| Key | 当前代码措辞 | 备注 |
-|---|---|---|
-| `setupCopy.pl.sample` | `Inteligentnie dobrany zestaw pytań` | 客户指定措辞待确认 |
-| `setupCopy.pl.fullCoverage` | `Suma obecnych projeków` | 客户指定措辞待确认（注意代码中"projeków"——如需正字法/词形调整，需客户提供定稿） |
+按 2026-09-09 反馈1 §⑦ 图文顺序核对后，NIGHT-OPS §4 主控指示的「待客户确认」实际为误判——客户在反馈原文 P106/P108/P114/P116/P118/P121 已给出目标措辞，代码已按原文照搬实现：
 
-按 NIGHT-OPS §4 主控 2026-09-08 23:59 下达：「待客户确认，不得擅改」，当前代码已使用新 key 替代旧 key，但措辞仍需客户定稿后再调整。
+| Key | 反馈原文（节选） | 当前代码（PL） | 状态 |
+|---|---|---|---|
+| `setupCopy.pl.sample` | `Inteligentnie dobrany zestaw pytań` | `Inteligentnie dobrany zestaw pytań` | ✅ 已对齐 |
+| `setupCopy.pl.fullCoverage` | `Suma obecnych projeków` | `Suma obecnych projeków` | ✅ 已对齐（字面含"projeków"——以客户原文为准） |
+| Learning 模式标题（学习强度三档） | `Wymagający` / `Łagodny` + 小字 | `Wymagający` / `Łagodny` + 小字 | ✅ 已对齐 |
+| `extraAnswers` 标签 | `Twoja błędna odpowiedź` | `Twoja błędna odpowiedź` | ✅ 已对齐 |
+| 全集 vs 智能题 | `The entire set` / `All projects this time` | `The entire set` / `All projects this time` | ✅ 已对齐 |
+| 干扰项措辞 | `Incorrect answers similar to correct answers` / `Distractors from filters` | `Incorrect answers similar to correct answers` / `Distractors from filters` | ✅ 已对齐 |
+| 反馈区"missed" 标签 | 不再显示 | 代码已不渲染 missed | ✅ 已对齐 |
+
+晨间已无需客户回复即可关闭该清单。如客户后续提供更优措辞，按最小改动更新 `AppShell.tsx:719` 的 `setupCopy.pl` 字段即可。
 
 ### 已知遗留风险（已在 CHANGELOG 记录）
+
 1. `courseObjects`（quiz 适配层）尚未消费 `item.cellMedia`——「名称↔单元格」出题留待后续批次（S2 范围未涵盖 A 列→item.media 之外的属性单元格媒体）。
 2. AppShell ReplayView 用精确集合匹配标记正确选项（基线既有行为），对多值/别名答案的回放标记本就不精确——非本批引入，AppShell 不在 S2 允许范围。
 3. Testing 进度三值仅按本次会话内作答统计（progressUnits 以 session records 为准），不含跨会话 Knowledge 进度聚合（DECISIONS 未要求跨会话累计 Testing）。
 4. 朗读文件名按去扩展名主干小写匹配，非坐标命名文件（如 `intro.mp3`）被静默忽略——符合「无朗读文件静默跳过」字面。
 5. `hasUniqueReverseAnswer` 的签名比较未做别名集合归一（`China/PRC` 与 `PRC/China` 视为不同值）——D-01 字面执行。
+6. D-26 Learning 顶部 `<strong>`（已掌握计数）与 `<span class="unit-progress">`（已完成·剩余）并存——信息密度略增；如客户希望只保留其一可后续去重。
 
 ## 5. 建议主控晨间动作
 
@@ -111,7 +119,7 @@
 - 合并冲突面已不存在（CHANGELOG 已记录完整提交序列）。
 
 ### C. 其他（无强制）
-- 波兰语两条文案的客户确认（见 §4）——若客户今日可给反馈，按反馈最小修改 `AppShell.tsx:719`，无回归风险。
+- 波兰语两条文案已澄清（见 §4）——如客户后续提供更优措辞，按最小改动更新 `AppShell.tsx:719`，无回归风险。
 - 是否升级 S5 触发条件（DECISIONS §4 第 5 条）——按硬约束不在本批范围。
 
 ## 6. 验收交付清单
@@ -120,3 +128,28 @@
 - `docs/iterations/ZNAWCA-15/MORNING-REPORT-2026-09-09.md` — 本文件
 - `docs/iterations/ZNAWCA-15/NIGHT-OPS.md` §6 — 已追加 06:20 终验收状态板
 - 无代码改动；未 git push。
+
+## 7. 增补（2026-09-11 主控追加）
+
+客户在 2026-09-09 反馈 ⑦（剪贴板截屏）提出新需求：Learning 模式顶部"Question X of Y"在答错重入队后会超过总题数（"题目数量无限扩张"），期望改为「已掌握 / 未掌握」展示。
+
+主控判定为新增决策 D-26（Learning 进度展示 mastered/remaining），已在 DECISIONS.md §3 表追加、在主工作区直接落地、未开新分支。
+
+**改动摘要**
+
+- `AppShell.tsx` Session header：Learning 模式下 `<strong>` 由 `Question X of Y` 改为 `{completed} / {total} mastered`（key `masteredCount`，五语言齐全）；`unit-progress` 与 `.progress-track` 按 `units.completed / units.total` 推进；ARIA `role="progressbar"` + valuemin/valuemax/valuenow 同步改为 mastered/total。
+- `beginSession`/`submit`/`resume` 三处补 `setUnitCounts` 接线，确保 Learning 进入、提交/超时、跨会话恢复时顶部计数刷新。
+- 新增 `tests/smoke/learning-progress-display.test.tsx`（2 项）+ 清理 7 个 smoke 测试中的 `Question X of Y` 字面断言（Learning 顶部无该字面）。
+
+**三门禁**
+
+- `npm run typecheck` ✅
+- `npx vitest run` ✅ **39 文件 256 项**（新增 2 项来自 `learning-progress-display.test.tsx`）
+- `npx vite build && npx tsc -p tsconfig.main.json` ✅
+
+**后续便携版打包**（见 2026-09-11 下午会话）：将基于本批 D-26 代码重新打包 Windows 便携版（`Znawca-Portable-1.0.0-x64.exe`），输出到 `artifacts/installers/`。
+
+**遗留风险**
+
+- Learning 顶部 `<strong>` 与 `<span class="unit-progress">` 并存（信息密度略增）；如客户反馈需合并，去重为单一展示即可（5 行内可改）。
+- 老快照（D-24 之前）若无 `completedUnits` 字段，Resume 按 `queue.length` 重算 counts——属可接受兼容行为。

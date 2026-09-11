@@ -79,7 +79,7 @@ describe("course import flow", () => {
     // 单媒体警告不阻断进入课程与学习。
     expect(await screen.findByText("Shape this session")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: /Begin learning/i }));
-    expect(screen.getByText("Question 1 of 8")).toBeVisible();
+    expect(screen.getByText("0 / 8 mastered")).toBeVisible();
     // 回到课程列表，警告可见且带可定位路径。
     fireEvent.click(screen.getByRole("button", { name: /Znawca/i }));
     expect(await screen.findByText(/MEDIA_CORRUPT/)).toBeVisible();

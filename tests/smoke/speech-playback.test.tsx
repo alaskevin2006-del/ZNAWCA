@@ -86,7 +86,7 @@ describe("D-23 question narration playback", () => {
     render(<AppShell />);
     fireEvent.click(await screen.findByRole("button", { name: /Open course/ }));
     fireEvent.click(screen.getByRole("button", { name: /Begin learning/i }));
-    expect(screen.getByText("Question 1 of 8")).toBeVisible();
+    expect(screen.getByText("0 / 8 mastered")).toBeVisible();
     // 首题是 cuckoo 的 Scientific name 输入题（正向）：名称单元格 A2 → 标题 B1-F。
     expect(play).toHaveBeenCalledWith([SPEECH_URL("A2"), SPEECH_URL("B1-F")]);
   });
@@ -98,7 +98,7 @@ describe("D-23 question narration playback", () => {
     render(<AppShell />);
     fireEvent.click(await screen.findByRole("button", { name: /Open course/ }));
     fireEvent.click(screen.getByRole("button", { name: /Begin learning/i }));
-    expect(screen.getByText("Question 1 of 8")).toBeVisible();
+    expect(screen.getByText("0 / 8 mastered")).toBeVisible();
     play.mockClear();
     fireEvent.click(screen.getByRole("button", { name: "Play narration" }));
     expect(play).toHaveBeenCalledWith([SPEECH_URL("A2"), SPEECH_URL("B1-F")]);
@@ -113,7 +113,7 @@ describe("D-23 question narration playback", () => {
     const play = vi.spyOn(PlaybackCoordinator.prototype, "play").mockImplementation(() => {});
     installSmokeCourse(defaultLocalState(), speechCourse);
     await beginChoiceDirectionSession(speechCourse, "Name to property");
-    expect(screen.getByText("Question 1 of 8")).toBeVisible();
+    expect(screen.getByText("0 / 8 mastered")).toBeVisible();
     play.mockClear();
     const fieldset = screen.getByRole("group", { name: "Your answer" });
     const radios = within(fieldset).getAllByRole("radio");
@@ -138,7 +138,7 @@ describe("D-23 question narration playback", () => {
     const play = vi.spyOn(PlaybackCoordinator.prototype, "play").mockImplementation(() => {});
     installSmokeCourse(defaultLocalState(), mediaSpeechCourse);
     await beginDirectionSession(mediaSpeechCourse, "Image to name");
-    expect(screen.getByText("Question 1 of 4")).toBeVisible();
+    expect(screen.getByText("0 / 4 mastered")).toBeVisible();
     // 题目本身是图片：不自动朗读，也不显示问题行扬声器。
     expect(play).not.toHaveBeenCalled();
     expect(screen.queryByRole("button", { name: "Play narration" })).toBeNull();

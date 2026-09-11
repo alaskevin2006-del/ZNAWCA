@@ -15,7 +15,7 @@ describe("desktop session flow", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Open course/ }));
     expect(screen.getByText("Shape this session")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: /Begin learning/i }));
-    expect(screen.getByText("Question 1 of 8")).toBeVisible();
+    expect(screen.getByText("0 / 8 mastered")).toBeVisible();
     expect(screen.getByText("Your answer")).toBeVisible();
   });
 
@@ -114,7 +114,7 @@ describe("desktop session flow", () => {
     fireEvent.click(screen.getByRole("button", { name: "Smart batch" }));
     fireEvent.change(screen.getByRole("spinbutton", { name: "Questions" }), { target: { value: "3" } });
     fireEvent.click(screen.getByRole("button", { name: /Begin Learning/i }));
-    expect(screen.getByText("Question 1 of 3")).toBeVisible();
+    expect(screen.getByText("0 / 3 mastered")).toBeVisible();
     expect(screen.getAllByRole("radio")).toHaveLength(4);
   });
 

@@ -1,6 +1,6 @@
 # ZNAWCA-15 实施台账
 
-> 填写者：WorkBuddy（主干合并 + 检查员③）｜状态：S0 ✅ S1 ✅（D-15~D-18）S2 ✅（D-19~D-21）S3 ✅（D-22~D-23）S4 ✅（D-24）+ 补充任务A/B ✅ D-25 ✅（视频 2×2）｜S5（阿/俄文案）延后
+> 填写者：WorkBuddy（主干合并 + 检查员③ + 主控追加）｜状态：S0 ✅ S1 ✅（D-15~D-18）S2 ✅（D-19~D-21）S3 ✅（D-22~D-23）S4 ✅（D-24）+ 补充任务A/B ✅ D-25 ✅（视频 2×2）D-26 ✅（Learning 进度 mastered/remaining）｜S5（阿/俄文案）延后
 
 ## 1. 基线
 
@@ -35,6 +35,7 @@
 | D-23 | 已修改 | S3 | `src/renderer/app-shell/AppShell.tsx`（`questionSpeech` useMemo + useEffect 自动播放）、`tests/smoke/speech-playback.test.tsx` | 文字题出现自动播放问题单元格音频；媒体题不播；播放不阻断判题/计分/保存/下一题 |
 | D-24 | 已修改 | S4 | `src/core/progress/knowledge-progress.ts`（`progressUnitKey`/`progressUnitTotal`/`ProgressUnitCounts`）、`src/core/session/learning-session.ts`、`src/core/session/testing-session.ts`、`src/core/session/session-controller.ts`（暴露 `progressUnits`）、`tests/session/progress-units.test.ts` | 一个「名称+学习单元格」关系为一个进度单位；Learning 开始固定总数、重试不增；Testing 显示总数/已完成/剩余；空单元格/缺失媒体/无区分度列天然被跳过不计 |
 | D-25 | 已修改 | S3 检查员③ | `src/renderer/app-shell/AppShell.tsx`（`isMediaGridOptions` 加入 video kind）、`src/renderer/app-shell/choices.css`（视频收窄规则）、`tests/smoke/media-grid.test.tsx`（测试从排除改为纳入）、`vitest.config.ts`（pool:vmThreads 修复 vitest 4.x） | 视频选项与图片/音频一样固定 2×2；提交 `a331600` |
+| D-26 | 已修改 | 主控追加 | `src/renderer/app-shell/AppShell.tsx`（Learning 头部按 masteredCount 替代 Question X of Y；Learning/Testing 统一显 unit-progress；进度条按 units.completed/total 推进）、`tests/smoke/learning-progress-display.test.tsx`（2 项：已掌握计数与 ARIA 推进、答错不增已掌握）、`tests/smoke/unit-progress-display.test.tsx`（Learning 第二条改为断言显 unit-progress）、`tests/smoke/{course-import-flow,media-grid,p2-acceptance,session-flow,speech-playback,feedback-playback}.test.tsx`（移除 Learning 顶部 Question X of Y 字面断言） | Learning 模式按进度单位显已掌握/未掌握，答错不增总数；标题用 `masteredCount` 键，五语言齐全；提问机制答错重入队不再推挤 X of Y |
 
 ## 3. 批次记录
 
@@ -170,6 +171,25 @@
 - 已知风险：
   - 朗读链顺序假设：问题单元格 → 双向标题（F/R）。若后续 UI 把题干放在内容前，需同步调整顺序。
   - `speech-audio.ts` 中列标题按 `course.columns.find((column) => column.title === field)` 查找；V2 表头含双向文本（如 `Diet / Food`），`field` 存储的是完整标题字符串，与列定义一致，故能正确命中。
+
+### 批次 D-26（Learning 进度展示 mastered/remaining，主控追加，2026-09-11）
+
+- 触发：客户 2026-09-09 反馈 ⑦（剪贴板截屏）——Learning 顶部"Question X of Y"在答错重入队后会超过总题数（"题目数量无限扩张"），与客户期望"已掌握/未掌握"不符。
+- 提交：本轮在主工作区直接修改，未开新分支；包含 D-26 改动的提交将在文档固化后由主控一次性提交。
+- 修改摘要：
+  - **`AppShell.tsx` Session header**：Learning + units 存在时，`<strong>` 改为 `{completed} / {total} mastered`（key `masteredCount`），不再用 `Question X of Y`；Learning 未设 units 的极端路径保留 fallback（旧字面仍在 tests 旧断言删除干净后无回归）。`unit-progress` 与 `.progress-track` 改为以 `units.completed / units.total` 推进；`role="progressbar"`、`aria-valuemin/valuemax/valuenow` 同步以 mastered/total 表达。
+  - **`beginSession`/`submit`/`resume` 三处接线 `setUnitCounts`**：Learning 进入即 `learningRef.current.progressUnits()`；提交/超时时 `learningRef.current!.answer(...)` 后刷新；`resume` 从 `record.progress` 的 unit 维度（completedUnits + queue）重建计数，确保跨会话恢复后顶部数字一致。
+  - **五语言键 `masteredCount`/`unitsLabel`/`unitsRemaining`** 早已在 D-24 实现，本轮复用，无新增本地化键。
+- 验收测试（`tests/smoke/learning-progress-display.test.tsx` 2 项）：
+  1. `replaces the asked-count header with mastered counts and a unit-based progress bar` —— 断言 `0 / 8 mastered`、副条 `0 / 8 units · 8 remaining`、无 `Question X of Y`、进度条宽度=0、ARIA `role="progressbar"` + `valuemin=0/valuemax=8/valuenow=0`。
+  2. `advances only on a correct answer and stays flat after a wrong retry` —— 首题答对（Cuculus canorus，requiredStreak=1）→ `1 / 8 mastered`、填充 12.5%、ARIA valuenow=1；下一题答错（`wrong`）重入队后计数/进度条不变。
+  - 辅助改动：旧 Learning 顶部 `Question X of Y` 字面断言从 7 个 smoke 测试（`course-import-flow`、`media-grid`×4、`p2-acceptance`、`session-flow`×2、`speech-playback`×2、`feedback-playback`×2、`unit-progress-display`）改为断言 `unit-progress`/`masteredCount` 或直接删除。
+- 验证：`npm run typecheck` ✅；`npx vitest run` ✅ **39 文件 256 项** 全过；`npx vite build` ✅；`npx tsc -p tsconfig.main.json` ✅。
+- 与任务方案的偏差（按 DECISIONS 字面执行并记录）：
+  1. `unit-progress` 与 `<strong>` 的 Learning 头部并存（前者来自 D-24 Testing 阶段，后者新增），信息密度略增但不冗余：`<strong>` 给绝对计数，`<span class="unit-progress">` 给"已完成 · 剩余"。如客户希望只保留其一，可在 M 阶段去重。
+  2. Learning 模式 fallback `Question X of Y` 保留（仅在 `props.units` 未设时），但当前主流程三个 beginSession 路径均会设 units，故正常路径不可见。
+- 已知风险：
+  1. `Resume` 路径用 `record.progress.completedUnits` + `record.progress.queue` 重算 counts，旧快照若无 `completedUnits`（D-24 之前的快照）会按 0/queue.length 重算，可能与原会话轻度不一致——属可接受兼容行为，老快照后续自动归档。
 
 ## 5. 最终交接
 

@@ -274,7 +274,7 @@ describe("AppShell feedback playback integration", () => {
     fireEvent.click(screen.getByRole("button", { name: "Check answer" }));
     expect(screen.getByText(/^Correct$/)).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Next question" }));
-    expect(screen.getByText("Question 2 of 8")).toBeVisible();
+    expect(screen.getByText("1 / 8 mastered")).toBeVisible();
   });
 
   it("answers normally when the sound pool is empty (no blocking)", async () => {
@@ -287,7 +287,7 @@ describe("AppShell feedback playback integration", () => {
     fireEvent.click(screen.getByRole("button", { name: "Check answer" }));
     expect(screen.getByText(/^Not quite$/)).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Next question" }));
-    expect(screen.getByText("Question 2 of 8")).toBeVisible();
+    expect(screen.getByText("0 / 8 mastered")).toBeVisible();
   });
 
   const sounds = {

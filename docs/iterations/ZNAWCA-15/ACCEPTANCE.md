@@ -29,6 +29,7 @@
 | D-23 | 通过 | `tests/smoke/speech-playback.test.tsx` 4 项：`auto-plays the question cell narration when a text question appears`（`[A2, B1-F]` 链序）+ `replays the narration from the question-row speaker without submitting` + `plays an option's narration from its speaker without selecting or submitting`（5 个扬声器、只播一段、不提交）+ `does not auto-play when the question itself is media`（play 未被调用、问题行扬声器缺失） | `AppShell.tsx` `questionSpeech` useMemo + useEffect 自动播放 + 扬声器 `type="button"` + preventDefault/stopPropagation | 无 |
 | D-24 | 通过 | `tests/session/progress-units.test.ts` 6 项：合并正反向/题型/媒体变体为单位 + 重试总数不变 + 双重不重复 + 旧快照兼容 + Testing 三值 + 跳过不计；`tests/smoke/unit-progress-display.test.tsx` 2 项：Testing 显示 `0 / 8 units · 8 remaining` → `1 / 8 units · 7 remaining`，Learning 不显示 | `knowledge-progress.ts` `progressUnitKey`+`progressUnitTotal`；`learning-session.ts` 固定 `unitTotal`；`testing-session.ts` `progressUnits` | 无 |
 | D-25 | 通过 | `tests/smoke/media-grid.test.tsx` `marks four video options with the media grid (D-25)`（4 video + radio + media-grid class）+ `compresses media options ...` 视频 max-height≤130px 断言 | `AppShell.tsx` `isMediaGridOptions` 含 `option.media?.kind === "video"`；`choices.css` 视频收窄规则 | 无 |
+| D-26 | 通过 | `tests/smoke/learning-progress-display.test.tsx` 2 项（已掌握计数 + 答错不增计数与 ARIA）+ `tests/smoke/unit-progress-display.test.tsx`（Learning 第二条改为断言显 unit-progress）+ 7 个 smoke 测试移除 Learning 顶部 `Question X of Y` 字面断言（已校验替换为 masteredCount 或直接删除） | `AppShell.tsx` Session header：Learning 模式按 `units.completed / units.total` 显 `masteredCount`、unit-progress 跨度与 `.progress-track` 宽度同步、ARIA valuenow=completed/valuemax=total；`beginSession`/`submit`/`resume` 三处补 `setUnitCounts` 接线 | 无 |
 
 ### 补充任务（主控 §4 补录）
 
@@ -49,8 +50,8 @@
 | 检查 | 结果 | 证据 |
 |---|---|---|
 | `npm run typecheck` | 通过 | `tsc -p tsconfig.json --noEmit && tsc -p tsconfig.main.json --noEmit` ✅ 退出码 0 |
-| `npm test -- --run` | 通过 | **38 文件 254 项** 全过 ✅ Duration 7.79s |
-| `npm run build` | 通过 | 沙箱限制下按 NIGHT-OPS §1 替代：`npx vite build` → 38 modules transformed，`dist/renderer/{index.html,index.css,index.js}` 产出（gzip JS 92.37 kB）；`npx tsc -p tsconfig.main.json` ✅ 无输出；总计 86 文件 dist |
+| `npm test -- --run` | 通过 | **39 文件 256 项** 全过 ✅ Duration 38.51s |
+| `npm run build` | 通过 | 沙箱限制下按 NIGHT-OPS §1 替代：`npx vite build` → 38 modules transformed，`dist/renderer/{index.html,index.css,index.js}` 产出（gzip JS 92.37 kB）；`npx tsc -p tsconfig.main.json` ✅ 无输出；总计 87 文件 dist |
 | 960×640 布局 | 通过 | `tests/smoke/media-grid.test.tsx` `compresses media options and the question card for the 960×640 minimum window`（CSS 紧凑值断言：img/video max-height≤130px、`.question-card` padding=10~19px、`.question-card.media-grid-card h1` margin-bottom=10~19px）；jsdom 不做真实布局已由代码注释说明 |
 | 官方开发渲染启动 | 通过 | CHANGELOG §3 S0 阶段记录 `npx vite` 开发服务器 ready in 1478ms（无 node:fs 崩溃）；S0-1/D-12 拆分浏览器安全模块后顶层导入不再触发 `node:fs/promises` 边界问题 |
 
@@ -58,9 +59,10 @@
 
 **通过。**
 
-- D-10 ~ D-25 共 16 项决策全部有真实测试覆盖且断言有效（不信文档自述，已逐一 Read/Grep 核对代码与测试）。所有错误码（`MEDIA_MISSING`/`MEDIA_CORRUPT`/`CELL_MEDIA_MIXED_KIND`/`CELL_MEDIA_PATH`/`COLUMN_MEDIA_MIXED_KIND`/`HEADER_BIDIRECTIONAL_MISSING`/`HEADER_BIDIRECTIONAL_SIDE_EMPTY`/`WORKBOOK_AMBIGUOUS`/`ITEM_NAME_EMPTY`）均在测试中真实断言。
+- D-10 ~ D-26 共 17 项决策全部有真实测试覆盖且断言有效（不信文档自述，已逐一 Read/Grep 核对代码与测试）。所有错误码（`MEDIA_MISSING`/`MEDIA_CORRUPT`/`CELL_MEDIA_MIXED_KIND`/`CELL_MEDIA_PATH`/`COLUMN_MEDIA_MIXED_KIND`/`HEADER_BIDIRECTIONAL_MISSING`/`HEADER_BIDIRECTIONAL_SIDE_EMPTY`/`WORKBOOK_AMBIGUOUS`/`ITEM_NAME_EMPTY`）均在测试中真实断言。
+- D-26（Learning 进度 mastered/remaining，2026-09-11 主控追加）已通过：Learning 顶部按 masteredCount + unit-progress 双段展示，进度条按 `units.completed / units.total` 推进并写入 ARIA；答错重入队不增计数。
 - 两个误报修复（`~$` 锁文件排除、合并单元格传播）有专门测试覆盖，路径/位置断言精确。
-- 三门禁 typecheck ✅ / 38 文件 254 项 ✅ / build ✅ 86 文件 dist 全部通过。
+- 三门禁 typecheck ✅ / 39 文件 256 项 ✅ / build ✅ 86 文件 dist 全部通过。
 - 未发现：排除项被实现（DECISIONS §4：Web/账户/付费/后台/AI 出题/Anvil/属性间横向出题/自动同义词/阿俄文案均未触碰）、测试被削弱（断言均为真实结果而非仅断言函数被调用）、无关文件被大范围改写。
-- 唯一遗留（按 NIGHT-OPS §4 主控指示「待客户确认，不得擅改」）：波兰语两条文案（`Inteligentnie dobrany zestaw pytań` / `Suma obecnych projeków`）当前位于 `src/renderer/app-shell/AppShell.tsx:719`（`setupCopy.pl.fullCoverage` 与 `.sample`），措辞未按客户指定——已在晨报标注为待确认。
+- 波兰语两条文案（`Inteligentnie dobrany zestaw pytań` / `Suma obecnych projeków`）已澄清：客户在反馈1 §⑦ 原文中已给出目标措辞，代码已按原文照搬实现，无「待客户确认」项。详见 MORNING-REPORT §4 已澄清。
 - 主控 05:00 旧自动化「ZNAWCA 修复项落地检查」（`automation-1788199402860`，状态 PAUSED）经核对：其检查项（合并单元格解析、缺失媒体 warning、2×2 紧凑 CSS）均已被本批验收测试覆盖（`loader.test.ts`、`media.test.ts`、`media-grid.test.tsx`），与 V2 解冻无冲突——建议主控晨间恢复（详见晨报）。

@@ -136,7 +136,7 @@ describe("P2 completion contract", () => {
     expect(screen.queryByText(/Weight/)).not.toBeInTheDocument();
     expect(screen.queryByText(/omega/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Review" }));
-    expect(screen.getByText(/Question 1 of/)).toBeVisible();
+    expect(screen.getByText(/0 \/ \d+ mastered/)).toBeVisible();
   });
 
   it("removes an imported course from the library without deleting its local records", async () => {

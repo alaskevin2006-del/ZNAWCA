@@ -1,4 +1,4 @@
-import { readFile, readdir } from "node:fs/promises";
+import { open, readdir } from "node:fs/promises";
 import { extname, join, parse } from "node:path";
 import { FEEDBACK_SOUND_PATTERN } from "./feedback-sound-select.js";
 import { normalizeKey } from "./normalization.js";
@@ -135,16 +135,23 @@ export async function listSpeechAudioFiles(speechDirectory: string): Promise<str
 }
 
 export async function hasValidSignature(file: string, name: string): Promise<boolean> {
-  let bytes: Buffer;
+  const bytes = Buffer.alloc(16);
+  let bytesRead = 0;
   try {
-    bytes = (await readFile(file)).subarray(0, 16);
+    const handle = await open(file, "r");
+    try {
+      bytesRead = (await handle.read(bytes, 0, bytes.length, 0)).bytesRead;
+    } finally {
+      await handle.close();
+    }
   } catch {
     return false;
   }
+  const header = bytes.subarray(0, bytesRead);
   const extension = extname(name).toLowerCase();
-  const ascii = bytes.toString("ascii");
+  const ascii = header.toString("ascii");
   if (extension === ".jpg" || extension === ".jpeg") return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
-  if (extension === ".png") return bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  if (extension === ".png") return header.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
   if (extension === ".webp") return ascii.startsWith("RIFF") && ascii.slice(8, 12) === "WEBP";
   if (extension === ".bmp") return ascii.startsWith("BM");
   if (extension === ".gif") return ascii.startsWith("GIF87a") || ascii.startsWith("GIF89a");

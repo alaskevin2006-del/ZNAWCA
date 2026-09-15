@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { LearningSession } from "../../src/core/session/learning-session.js";
 import type { AnswerEvaluation, Question } from "../../src/core/quiz/types.js";
 
@@ -7,6 +7,10 @@ const wrong: AnswerEvaluation = { score: 0, fullyCorrect: false, matched: [], mi
 const question = (id: string): Question => ({ id, objectId: id, kind: "input", direction: "name-to-property", prompt: "Question", acceptedAnswers: ["yes"] });
 
 describe("learning session", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("removes an initially correct question immediately", () => {
     const session = new LearningSession([question("a")]);
     session.answer("a", correct);
@@ -24,6 +28,18 @@ describe("learning session", () => {
     session.answer("a", correct);
     session.answer("a", correct);
     expect(session.isComplete()).toBe(true);
+  });
+
+  it("reshuffles the active queue after a missed learning question", () => {
+    vi.spyOn(Math, "random")
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(0);
+    const session = new LearningSession([question("a"), question("b"), question("c"), question("d")]);
+
+    session.answer("a", wrong);
+
+    expect(session.snapshot().queue.map((entry) => entry.question.id)).toEqual(["c", "d", "a", "b"]);
   });
 
   it("does not treat an answer with extras as complete even when every part matched", () => {

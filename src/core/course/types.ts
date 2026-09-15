@@ -101,6 +101,16 @@ export interface CourseLoadReport {
   readonly canOpen: boolean;
 }
 
+export interface CourseCatalogEntry {
+  readonly id: string;
+  readonly title: string;
+  readonly directory: string;
+  readonly workbookPaths: readonly string[];
+  readonly languageCode?: string;
+  readonly issues: readonly CourseIssue[];
+  readonly canOpen: boolean;
+}
+
 export interface WorksheetCell {
   readonly row: number;
   readonly column: number;

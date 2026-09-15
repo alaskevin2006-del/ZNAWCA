@@ -254,6 +254,46 @@ describe("buildFeedbackPlaybackChain", () => {
     expect(second.chain).toEqual(["correct-0.mp3"]);
     expect(second.correctIndex).toBe(0);
   });
+
+  it("appends the answer speech chain when no reliable answer media exists (D-22)", () => {
+    // 文字题（name-to-property）无答案媒体 → 回退接 answerSpeech 朗读链。
+    const selection = buildFeedbackPlaybackChain({
+      fullyCorrect: false,
+      feedbackSounds: sounds,
+      question: question({ direction: "name-to-property" }),
+      random: source([0]),
+      previousCorrectIndex: -1,
+      previousIncorrectIndex: -1,
+      answerSpeech: ["speech://C2.mp3"],
+    });
+    expect(selection.chain).toEqual(["incorrect-0.mp3", "speech://C2.mp3"]);
+  });
+
+  it("plays only the answer speech when no sound pool exists", () => {
+    const selection = buildFeedbackPlaybackChain({
+      fullyCorrect: true,
+      feedbackSounds: undefined,
+      question: question({ direction: "image-to-name", media: { kind: "image", path: "img.jpg" } }),
+      random: source([0]),
+      previousCorrectIndex: -1,
+      previousIncorrectIndex: -1,
+      answerSpeech: ["speech://B2.mp3"],
+    });
+    expect(selection.chain).toEqual(["speech://B2.mp3"]);
+  });
+
+  it("prefers the answer media over the answer speech when both exist", () => {
+    const selection = buildFeedbackPlaybackChain({
+      fullyCorrect: true,
+      feedbackSounds: undefined,
+      question: question({ direction: "audio-to-name", media: { kind: "audio", path: "prompt.mp3" } }),
+      random: source([0]),
+      previousCorrectIndex: -1,
+      previousIncorrectIndex: -1,
+      answerSpeech: ["speech://B2.mp3"],
+    });
+    expect(selection.chain).toEqual(["prompt.mp3"]);
+  });
 });
 
 describe("AppShell feedback playback integration", () => {

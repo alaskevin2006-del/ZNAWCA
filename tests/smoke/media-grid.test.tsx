@@ -60,6 +60,7 @@ describe("D-11 media choice grid", () => {
     installSmokeCourse(defaultLocalState(), mediaCourse);
     await beginChoiceSession(mediaCourse, "Name to image");
     expect(screen.getByText("0 / 4 mastered")).toBeVisible();
+    expect(document.querySelector(".content")?.className).toContain("content-session");
     const fieldset = screen.getByRole("group", { name: "Your answer" });
     expect(fieldset.className).toContain("media-grid");
     expect(fieldset.querySelectorAll("img")).toHaveLength(4);
@@ -83,6 +84,19 @@ describe("D-11 media choice grid", () => {
     expect(radios).toHaveLength(4);
     fireEvent.click(radios[0]);
     expect(radios[0]).toBeChecked();
+  });
+
+  it("stops the previous audio option when another one starts playing", async () => {
+    installSmokeCourse(defaultLocalState(), mediaCourse);
+    await beginChoiceSession(mediaCourse, "Name to audio");
+    const fieldset = screen.getByRole("group", { name: "Your answer" });
+    const controls = fieldset.querySelectorAll("audio");
+    const firstPause = vi.spyOn(controls[0]!, "pause").mockImplementation(() => {});
+
+    fireEvent.play(controls[0]!);
+    fireEvent.play(controls[1]!);
+
+    expect(firstPause).toHaveBeenCalledTimes(1);
   });
 
   it("keeps three media options on two rows with the grid mark", async () => {
@@ -123,12 +137,14 @@ describe("D-11 media choice grid", () => {
     // jsdom 不做真实布局（getBoundingClientRect 恒为 0），这里退而校验 CSS 源码中的关键紧凑值，
     // 防止回归到宽松尺寸导致 2×2 第二行在最小窗口被裁切。真实像素级验证需浏览器环境（Playwright）。
     const choicesCss = readFileSync(resolve(process.cwd(), "src/renderer/app-shell/choices.css"), "utf8");
-    const imgHeight = choicesCss.match(/\.choice-list\.media-grid \.question-media img\s*\{[^}]*max-height:\s*(\d+)px/);
+    // clamp(下限, 18vh, 上限)：下限保证 960×640 两行可见（18vh@640=115px 仍在预算内），
+    // 上限防止超大显示器过度拉伸。这里校验 clamp 下限不超过最小窗口安全值。
+    const imgHeight = choicesCss.match(/\.choice-list\.media-grid \.question-media img\s*\{[^}]*max-height:\s*clamp\((\d+)px/);
     expect(imgHeight).not.toBeNull();
     expect(Number(imgHeight![1])).toBeLessThanOrEqual(130);
 
     // D-25：视频选项在 2×2 网格内同样收窄
-    const videoHeight = choicesCss.match(/\.choice-list\.media-grid \.question-media video\s*\{[^}]*max-height:\s*(\d+)px/);
+    const videoHeight = choicesCss.match(/\.choice-list\.media-grid \.question-media video\s*\{[^}]*max-height:\s*clamp\((\d+)px/);
     expect(videoHeight).not.toBeNull();
     expect(Number(videoHeight![1])).toBeLessThanOrEqual(130);
 

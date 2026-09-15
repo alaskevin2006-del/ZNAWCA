@@ -13,9 +13,12 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-/* 选项区图片在 2×2 网格内收窄，保证最小常规窗口（960×640）下两行同时可见 */
+/* 选项区媒体在 2×2 网格内自适应：高度随窗口高度伸缩（clamp），
+   下限 80px 保证最小常规窗口（960×640）两行同时可见（D-11），
+   上限 200px 避免超大显示器下过度拉伸；水平居中避免单侧留黑。 */
 .choice-list.media-grid .question-media img {
-  max-height: 80px;
+  max-height: clamp(80px, 18vh, 200px);
+  margin: 0 auto;
 }
 
 .choice-list.media-grid label {
@@ -26,9 +29,10 @@
   margin: 4px 12px;
 }
 
-/* D-25：视频选项在 2×2 网格内收窄，与图片同等紧凑约束 */
+/* D-25：视频选项在 2×2 网格内自适应，与图片同等约束 */
 .choice-list.media-grid .question-media video {
-  max-height: 80px;
+  max-height: clamp(80px, 18vh, 200px);
+  margin: 0 auto;
 }
 
 .choice-list legend {

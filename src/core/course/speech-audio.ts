@@ -97,6 +97,35 @@ export function speechAudioForQuestion(course: Course, question: Question): stri
 }
 
 /**
+ * D-22：反馈链中「正确答案」的文字朗读（V2 speech 坐标）。答案本身是可播放
+ * 媒体（音频）时不朗读文字——feedback 的 answerAudioPath 会直接播放答案音频；
+ * 图片/视频答案无声。其余文字答案按其来源单元格取坐标：
+ * - `name-to-property`：该对象该属性列单元格（答案＝属性值）；
+ * - `property-to-name` / `image-to-name` / `video-to-name`：名称列单元格（答案＝名称）。
+ * `name-to-*`（答案为媒体）与 `audio-to-name`（答案音频已由媒体链覆盖）返回空链。
+ * 缺失对应朗读文件时返回空链（调用方静默跳过，不启用 TTS）。
+ */
+export function speechAudioForAnswer(course: Course, question: Question): string[] {
+  const map = speechLookup(course);
+  const item = itemByObjectId(course, question.objectId);
+  if (!item) return [];
+  const nameColumnIndex = course.nameColumnIndex ?? 1;
+  if (question.direction === "name-to-property") {
+    const columnIndex = fieldColumnIndex(course, question.field);
+    if (columnIndex === undefined) return [];
+    const url = lookup(map, cellSpeechFile(columnIndex, item.sourceRow));
+    return url ? [url] : [];
+  }
+  if (question.direction === "property-to-name"
+    || question.direction === "image-to-name"
+    || question.direction === "video-to-name") {
+    const url = lookup(map, cellSpeechFile(nameColumnIndex, item.sourceRow));
+    return url ? [url] : [];
+  }
+  return [];
+}
+
+/**
  * D-22：文字答案按钮的手动朗读。媒体选项自身可播放，不提供朗读按钮；
  * 其余文字选项按其文本来源单元格取坐标：`name-to-property` 选项＝该对象
  * 该属性列单元格，其余方向的文字选项（名称）＝该对象名称列单元格。

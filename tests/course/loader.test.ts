@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { discoverCourses, loadCourse, loadCourseVersions } from "../../src/core/course/loader.js";
+import { discoverCourseCatalog, discoverCourses, loadCourse, loadCourseVersions } from "../../src/core/course/loader.js";
 import { createCourseFixture, createMergedCellFixture } from "./xlsx-fixture.js";
 
 describe("course loader", () => {
@@ -160,6 +160,31 @@ describe("course loader", () => {
       await rm(mixedRoot, { recursive: true, force: true });
     }
   });
+
+  it("loads a single language-suffixed workbook as a V2 course (D-16 single-language)", async () => {
+    const singleRoot = await mkdtemp(join(tmpdir(), "znawca-single-lang-"));
+    try {
+      const rows = [
+        ["Birds of Europe", "Name / Bird", "Diet / Food"],
+        ["", "Common Cuckoo", "insects"],
+        ["", "European Herring Gull", "fish"],
+      ] as const;
+      const { directory } = await createCourseFixture(singleRoot, "Solo", "Solo_Eng.xlsx", rows);
+      const reports = await loadCourseVersions(directory);
+
+      // 单语言后缀工作簿同样按 V2 展开（单语言 V2 合法），而非 V1。
+      expect(reports).toHaveLength(1);
+      expect(reports[0]?.canOpen).toBe(true);
+      expect(reports[0]?.course).toMatchObject({
+        formatVersion: "v2",
+        languageCode: "Eng",
+        nameColumnIndex: 2,
+      });
+      expect(reports[0]?.course?.id).toBe("solo_eng");
+    } finally {
+      await rm(singleRoot, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("course discovery", () => {
@@ -198,6 +223,30 @@ describe("course discovery", () => {
       course: { title: "Fixture", directory: courseDirectory },
       issues: [],
     });
+  });
+
+  it("discovers a lightweight catalog without reading workbook contents", async () => {
+    const catalogRoot = await mkdtemp(join(tmpdir(), "znawca-catalog-"));
+    try {
+      const course = join(catalogRoot, "Huge Course");
+      await mkdir(course, { recursive: true });
+      await writeFile(join(course, "Huge Course.xlsx"), "placeholder, not a valid workbook");
+
+      const entries = await discoverCourseCatalog(catalogRoot);
+
+      expect(entries).toEqual([expect.objectContaining({
+        id: "huge course",
+        title: "Huge Course",
+        directory: course,
+        workbookPaths: [join(course, "Huge Course.xlsx")],
+        canOpen: true,
+        issues: [],
+      })]);
+      const fullReports = await discoverCourses(catalogRoot);
+      expect(fullReports[0]).toMatchObject({ canOpen: false });
+    } finally {
+      await rm(catalogRoot, { recursive: true, force: true });
+    }
   });
 
   it("ignores a selected directory that contains no course candidates", async () => {

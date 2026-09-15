@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Znawca application icon</title>
+  <desc id="desc">A dark polished app tile with a gold Z monogram and learning-card motif.</desc>
+  <defs>
+    <linearGradient id="tile" x1="180" y1="120" x2="850" y2="920" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4b4b46"/>
+      <stop offset="0.55" stop-color="#242424"/>
+      <stop offset="1" stop-color="#111111"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="250" y1="220" x2="800" y2="780" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff0a7"/>
+      <stop offset="0.45" stop-color="#d4aa42"/>
+      <stop offset="1" stop-color="#92631d"/>
+    </linearGradient>
+    <filter id="shadow" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="34" stdDeviation="42" flood-color="#000000" flood-opacity="0.42"/>
+    </filter>
+  </defs>
+  <rect x="112" y="112" width="800" height="800" rx="180" fill="url(#tile)" filter="url(#shadow)"/>
+  <rect x="153" y="153" width="718" height="718" rx="146" fill="none" stroke="url(#gold)" stroke-width="28"/>
+  <path d="M302 284h420L390 740h360" fill="none" stroke="url(#gold)" stroke-width="104" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M292 354h154M578 670h160" fill="none" stroke="#fff3ba" stroke-width="28" stroke-linecap="round" opacity="0.72"/>
+  <circle cx="512" cy="512" r="300" fill="none" stroke="#fff2b2" stroke-width="14" opacity="0.18"/>
+</svg>

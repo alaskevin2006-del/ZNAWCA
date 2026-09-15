@@ -38,6 +38,14 @@
 .app-shell.app-shell{height:100vh;min-height:0;overflow:hidden}
 .app-shell>.workspace{height:calc(100vh - 78px);min-height:0}
 .app-shell .content{min-height:0;overflow-y:auto;overscroll-behavior:contain}
+.app-shell .content-session{display:flex;min-height:0;padding:18px 24px;overflow:hidden}
+.content-session .session-page{display:flex;width:100%;max-width:none;min-height:100%;margin:0;flex-direction:column}
+.content-session .session-header{flex:0 0 auto}
+.content-session .question-card{display:flex;flex:1 1 auto;min-height:0;margin-top:18px;flex-direction:column}
+.content-session .question-heading{flex:0 0 auto}
+.content-session .choice-list{min-height:0}
+.content-session .choice-list.media-grid{flex:1 1 auto}
+.content-session .question-actions{margin-top:auto;padding-top:24px}
 .course-grid>.course-card{display:flex;flex-direction:column}
 .course-grid>.course-card .course-art{flex:0 0 160px}
 .course-grid>.course-card .course-copy{display:flex;flex:1;flex-direction:column}

@@ -3,12 +3,13 @@ import { pathToFileURL } from "node:url";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, dialog, ipcMain, net, protocol } from "electron";
 import type { CourseLoadReport } from "../core/course/types.js";
-import { discoverCourses, loadCourse } from "../core/course/loader.js";
+import { discoverCourseCatalog, loadCourse, loadCourseVersion } from "../core/course/loader.js";
 import { organizeCourseFiles } from "../core/course/organizer.js";
 import { parseLocalState, type LocalState } from "../core/persistence/index.js";
 import { IPC_CHANNELS } from "../preload/contracts.js";
 import { readLocalState, writeLocalState } from "./local-state-file.js";
 import { MEDIA_SCHEME, mediaUrl, resolveMediaUrl } from "./media-protocol.js";
+import { resolveLibraryCourseDirectory } from "./path-security.js";
 import { createWindowOptions } from "./window-options.js";
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -40,33 +41,49 @@ function registerIpcHandlers(): void {
     });
     if (result.canceled || result.filePaths.length === 0) return null;
     const sourceDirectory = path.resolve(result.filePaths[0]);
-    // Every selection is scanned before any file is copied or reorganized.
-    const initialReports = await discoverCourses(sourceDirectory);
+    // Every selection is checked before any file is copied or reorganized, but this catalog pass
+    // deliberately avoids reading workbook contents or scanning media for every course.
+    const initialCatalog = await discoverCourseCatalog(sourceDirectory);
     if (requestedMode === "organize") {
       const organization = await organizeCourseFiles(sourceDirectory);
       return { ...await discoverLibrary(organization.organizedDirectory), organization };
     }
-    return libraryFromReports(sourceDirectory, initialReports);
+    return libraryFromCatalog(sourceDirectory, initialCatalog);
   });
   ipcMain.handle(IPC_CHANNELS.scanCourseRoot, (_event, rootDirectory: unknown) =>
     typeof rootDirectory === "string" && rootDirectory.trim()
       ? discoverLibrary(path.resolve(rootDirectory))
-      : Promise.resolve({ rootDirectory: "", reports: [] }));
+      : Promise.resolve({ rootDirectory: "", reports: [], catalog: [] }));
+  ipcMain.handle(IPC_CHANNELS.loadCourseFromLibrary, async (_event, rootDirectory: unknown, courseDirectory: unknown, courseId: unknown) => {
+    if (
+      typeof rootDirectory !== "string" || !rootDirectory.trim() ||
+      typeof courseDirectory !== "string" || !courseDirectory.trim() ||
+      typeof courseId !== "string" || !courseId.trim()
+    ) {
+      return noCourseCandidates("");
+    }
+    const resolvedCourseDirectory = await resolveLibraryCourseDirectory(rootDirectory, courseDirectory).catch(() => undefined);
+    if (!resolvedCourseDirectory) return noCourseCandidates(path.resolve(courseDirectory));
+    const report = await loadCourseVersion(resolvedCourseDirectory, courseId);
+    if (report.canOpen && report.course) allowedCourseRoots.add(path.resolve(report.course.directory));
+    return withMediaUrls(report);
+  });
   ipcMain.handle(IPC_CHANNELS.loadLocalState, () => readLocalState(stateFile));
   ipcMain.handle(IPC_CHANNELS.saveLocalState, (_event, state: unknown) =>
     writeLocalState(stateFile, parseLocalState(JSON.stringify(state))));
 }
 
 async function discoverLibrary(rootDirectory: string) {
-  return libraryFromReports(rootDirectory, await discoverCourses(rootDirectory));
+  return libraryFromCatalog(rootDirectory, await discoverCourseCatalog(rootDirectory));
 }
 
-function libraryFromReports(rootDirectory: string, discovered: readonly CourseLoadReport[]) {
-  const reports = discovered.length > 0 ? discovered : [noCourseCandidates(rootDirectory)];
-  for (const report of reports) {
-    if (report.canOpen && report.course) allowedCourseRoots.add(path.resolve(report.course.directory));
-  }
-  return { rootDirectory, reports: reports.map(withMediaUrls) };
+function libraryFromCatalog(rootDirectory: string, discovered: Awaited<ReturnType<typeof discoverCourseCatalog>>) {
+  const catalog = discovered.length > 0 ? discovered : [catalogFromReport(noCourseCandidates(rootDirectory), rootDirectory)];
+  return {
+    rootDirectory,
+    reports: catalog.filter((entry) => !entry.canOpen).map((entry) => ({ canOpen: false, issues: entry.issues })),
+    catalog,
+  };
 }
 
 function noCourseCandidates(rootDirectory: string): CourseLoadReport {
@@ -79,6 +96,17 @@ function noCourseCandidates(rootDirectory: string): CourseLoadReport {
       suggestion: "Add an XLSX workbook with a header row and learning content, or choose automatic organization.",
       location: { file: rootDirectory },
     }],
+  };
+}
+
+function catalogFromReport(report: CourseLoadReport, rootDirectory: string) {
+  return {
+    id: "course-structure-not-found",
+    title: path.basename(rootDirectory) || rootDirectory,
+    directory: rootDirectory,
+    workbookPaths: [],
+    issues: report.issues,
+    canOpen: false,
   };
 }
 

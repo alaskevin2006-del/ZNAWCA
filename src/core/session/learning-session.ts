@@ -76,6 +76,7 @@ export class LearningSession {
       const question = reshuffleChoiceOptions(progress.question);
       const updated = { ...progress, question, requiredStreak: 2 as const, correctStreak: 0, attempts };
       this.queue.push(updated);
+      reshuffleQueueAfterMiss(this.queue, updated);
       return updated;
     }
     const streak = progress.correctStreak + 1;
@@ -131,4 +132,19 @@ function reshuffleChoiceOptions(question: Question): Question {
     [options[index], options[swap]] = [options[swap]!, options[index]!];
   }
   return { ...question, options };
+}
+
+/**
+ * 答错回池后重新打乱剩余题目顺序，避免首轮随机后按固定队列循环。
+ * 队列中还有其他题时，把刚答错的题从首位移开，避免立刻原题重来。
+ */
+function reshuffleQueueAfterMiss(queue: LearningQuestionProgress[], missed: LearningQuestionProgress): void {
+  if (queue.length <= 1) return;
+  for (let index = queue.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(Math.random() * (index + 1));
+    [queue[index], queue[swap]] = [queue[swap]!, queue[index]!];
+  }
+  if (queue[0] !== missed) return;
+  const swap = 1 + Math.floor(Math.random() * (queue.length - 1));
+  [queue[0], queue[swap]] = [queue[swap]!, queue[0]!];
 }

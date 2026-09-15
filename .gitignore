@@ -28,7 +28,9 @@ artifacts/
 tmp/
 
 # Integrated desktop assets (videos, test samples, course library)
-assets/
+assets/*
+!assets/icon.ico
+!assets/icon-source.svg
 
 # WorkBuddy tool state (not part of the project source)
 .workbuddy/

@@ -1,4 +1,6 @@
+import { realpathSync } from "node:fs";
 import path from "node:path";
+import { isPathInsideOrEqual } from "./path-security.js";
 
 export const MEDIA_SCHEME = "znawca-media";
 
@@ -12,14 +14,15 @@ export function resolveMediaUrl(url: string, allowedRoots: readonly string[]): s
     if (parsed.protocol !== `${MEDIA_SCHEME}:` || parsed.hostname !== "asset") return undefined;
     const encoded = parsed.pathname.slice(1);
     if (!encoded) return undefined;
-    const candidate = path.resolve(Buffer.from(encoded, "base64url").toString("utf8"));
-    return allowedRoots.some((root) => isWithin(root, candidate)) ? candidate : undefined;
+    const candidate = realpathSync(path.resolve(Buffer.from(encoded, "base64url").toString("utf8")));
+    return allowedRoots.some((root) => {
+      try {
+        return isPathInsideOrEqual(candidate, realpathSync(path.resolve(root)));
+      } catch {
+        return false;
+      }
+    }) ? candidate : undefined;
   } catch {
     return undefined;
   }
-}
-
-function isWithin(root: string, candidate: string): boolean {
-  const relative = path.relative(path.resolve(root), candidate);
-  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }

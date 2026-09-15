@@ -18,7 +18,7 @@ describe("Electron window security", () => {
 
   it("exposes only the required narrow IPC channels", () => {
     expect(Object.keys(IPC_CHANNELS)).toEqual([
-      "chooseCourse", "chooseCourseRoot", "scanCourseRoot", "loadLocalState", "saveLocalState",
+      "chooseCourse", "chooseCourseRoot", "scanCourseRoot", "loadCourseFromLibrary", "loadLocalState", "saveLocalState",
     ]);
   });
 });

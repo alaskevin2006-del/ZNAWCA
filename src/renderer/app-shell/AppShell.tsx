@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CourseOrganizationSummary } from "../../core/course/organizer";
-import type { Course, CourseIssue } from "../../core/course/types";
+import type { Course, CourseCatalogEntry, CourseIssue } from "../../core/course/types";
 import { DifficultyMemory } from "../../core/difficulty/difficulty-memory";
 import { formatItemNameEmpty, supportedLocales, textDirection, translate, type Locale, type MessageKey } from "../../core/localization";
 import {
@@ -15,7 +15,7 @@ import {
   type LocalState,
 } from "../../core/persistence";
 import { filterOptions, filteredCourseObjects } from "../../core/quiz/course-adapter";
-import { speechAudioForOption, speechAudioForQuestion } from "../../core/course/speech-audio";
+import { speechAudioForAnswer, speechAudioForOption, speechAudioForQuestion } from "../../core/course/speech-audio";
 import { buildCourseQuestionSet, type CourseQuestionSet } from "../../core/quiz/question-set";
 import { evaluateAnswer } from "../../core/quiz/scoring";
 import { mathRandomSource } from "../../core/quiz/types";
@@ -49,6 +49,7 @@ import {
   type TestHistoryRecord,
 } from "../../core/session";
 import type { DifficultyRecord } from "../../core/difficulty/difficulty-memory";
+import type { CourseLibraryReport } from "../../preload/contracts";
 import "./course-errors.css";
 import "./choices.css";
 import "./filters.css";
@@ -61,6 +62,7 @@ type CoverageMode = "all" | "sample";
 type Timer = 0 | 10 | 15 | 20;
 type EnabledKinds = Record<QuestionKind, boolean>;
 type EnabledDirections = Record<QuestionDirection, boolean>;
+type CourseListEntry = Course | CourseCatalogEntry;
 
 const directionLabels: ReadonlyArray<[QuestionDirection, MessageKey]> = [
   ["name-to-property", "nameToProperty"],
@@ -79,11 +81,50 @@ const emptySet: CourseQuestionSet = {
   availability: { generated: 0, input: 0, choice: 0, degraded: 0, skipped: 0, byDirection: {} },
 };
 
+function isLoadedCourse(entry: CourseListEntry): entry is Course {
+  return "items" in entry && "columns" in entry;
+}
+
+function courseCatalogFromLibrary(library: CourseLibraryReport): CourseCatalogEntry[] {
+  if (library.catalog?.length > 0) return [...library.catalog];
+  return library.reports.flatMap((report) => {
+    if (report.course) return [courseToCatalogEntry(report.course, report.issues, report.canOpen)];
+    if (report.issues.length === 0) return [];
+    const file = report.issues[0].location.file;
+    return [{
+      id: `issue-${report.issues[0].code}-${file}`,
+      title: file.split(/[\\/]/).filter(Boolean).at(-1) ?? file,
+      directory: file,
+      workbookPaths: [],
+      issues: report.issues,
+      canOpen: false,
+    }];
+  });
+}
+
+function courseIssuesFromLibrary(library: CourseLibraryReport, catalog: readonly CourseCatalogEntry[]): readonly CourseIssue[] {
+  if (library.catalog?.length > 0) return catalog.flatMap((entry) => entry.issues);
+  return library.reports.flatMap((report) => report.issues);
+}
+
+function courseToCatalogEntry(course: Course, issues: readonly CourseIssue[] = [], canOpen = true): CourseCatalogEntry {
+  return {
+    id: course.id,
+    title: course.title,
+    directory: course.directory,
+    workbookPaths: [course.workbookPath],
+    languageCode: course.languageCode,
+    issues,
+    canOpen,
+  };
+}
+
 export function AppShell() {
   const [screen, setScreen] = useState<Screen>("courses");
   const [courseTitle, setCourseTitle] = useState("");
   const [activeCourse, setActiveCourse] = useState<Course>();
   const [loadedCourses, setLoadedCourses] = useState<Course[]>([]);
+  const [courseCatalog, setCourseCatalog] = useState<CourseCatalogEntry[]>([]);
   const [courseIssues, setCourseIssues] = useState<readonly CourseIssue[]>([]);
   const [mode, setMode] = useState<Mode>("learning");
   const [timer, setTimer] = useState<Timer>(0);
@@ -116,15 +157,43 @@ export function AppShell() {
   const testingRef = useRef<TestingSessionController | undefined>(undefined);
   const playbackRef = useRef<PlaybackCoordinator | undefined>(undefined);
   if (!playbackRef.current) playbackRef.current = new PlaybackCoordinator(domAudioFactory);
+  const manualMediaRef = useRef<HTMLMediaElement | null>(null);
+  const courseLoadRef = useRef(new Map<string, Promise<Course | undefined>>());
   const lastFeedbackSoundRef = useRef({ correct: -1, incorrect: -1 });
+  const stopManualMedia = (): void => {
+    const media = manualMediaRef.current;
+    manualMediaRef.current = null;
+    if (media) {
+      try { media.pause(); } catch { /* Native media may be unavailable in tests or damaged files. */ }
+    }
+  };
+  const stopAllPlayback = (): void => {
+    playbackRef.current?.cancel();
+    stopManualMedia();
+  };
 
   useEffect(() => {
     const cancelOnManualPlay = (event: Event) => {
-      // D-13：用户在界面手动播放任何媒体时，明确取消自动链。
-      if (event.target instanceof HTMLMediaElement) playbackRef.current?.cancel();
+      // D-13：用户手动播放媒体时，取消自动链并停止上一条手动媒体，避免重叠。
+      if (!(event.target instanceof HTMLMediaElement)) return;
+      playbackRef.current?.cancel();
+      const previous = manualMediaRef.current;
+      if (previous && previous !== event.target) {
+        try { previous.pause(); } catch { /* Ignore unavailable media controls. */ }
+      }
+      manualMediaRef.current = event.target;
+    };
+    const clearManualMedia = (event: Event) => {
+      if (event.target === manualMediaRef.current) manualMediaRef.current = null;
     };
     document.addEventListener("play", cancelOnManualPlay, true);
-    return () => document.removeEventListener("play", cancelOnManualPlay, true);
+    document.addEventListener("pause", clearManualMedia, true);
+    document.addEventListener("ended", clearManualMedia, true);
+    return () => {
+      document.removeEventListener("play", cancelOnManualPlay, true);
+      document.removeEventListener("pause", clearManualMedia, true);
+      document.removeEventListener("ended", clearManualMedia, true);
+    };
   }, []);
   useEffect(() => {
     playbackRef.current?.setVolume(playerVolume);
@@ -139,11 +208,15 @@ export function AppShell() {
     // 播放不阻断判题、计分、保存和下一题（submit/next 已各自 cancel）。
     if (!question || feedback) return;
     if (questionSpeech.length === 0) return;
+    stopManualMedia();
     playbackRef.current?.play(questionSpeech);
   }, [question, feedback, questionSpeech]);
   const playSpeech = (urls: readonly string[]): void => {
     // 手动扬声器按钮：只播放，不提交答案、不改变会话状态。
-    if (urls.length > 0) playbackRef.current?.play([...urls]);
+    if (urls.length > 0) {
+      stopManualMedia();
+      playbackRef.current?.play([...urls]);
+    }
   };
   useEffect(() => {
     // D-12/D-13：提交/超时产生 feedback 后，串行播放“正误提示音 → 正确答案音频”。
@@ -155,9 +228,14 @@ export function AppShell() {
       random: mathRandomSource,
       previousCorrectIndex: lastFeedbackSoundRef.current.correct,
       previousIncorrectIndex: lastFeedbackSoundRef.current.incorrect,
+      // D-22：文字题正确答案的朗读回退（无可靠答案媒体时接在链尾）。
+      answerSpeech: speechAudioForAnswer(activeCourse, question),
     });
     lastFeedbackSoundRef.current = { correct: selection.correctIndex, incorrect: selection.incorrectIndex };
-    if (selection.chain.length > 0) playbackRef.current?.play(selection.chain);
+    if (selection.chain.length > 0) {
+      stopManualMedia();
+      playbackRef.current?.play(selection.chain);
+    }
   }, [feedback, question, activeCourse]);
 
   useEffect(() => {
@@ -179,12 +257,11 @@ export function AppShell() {
           void window.znawca.scanCourseRoot(value.settings.courseRoot).then((library) => {
             if (!active) return;
             const removedCourseIds = new Set(value.settings.removedCourseIds);
-            const visibleReports = library.reports.filter((report) => !report.course || !removedCourseIds.has(report.course.id));
-            const courses = visibleReports.flatMap((report) => report.canOpen && report.course ? [report.course] : []);
-            setLoadedCourses(courses);
-            setCourseIssues(visibleReports.flatMap((report) => report.issues));
-            const recent = courses.find((course) => course.id === value.settings.recentCourseId);
-            if (recent) { setCourseTitle(recent.title); setActiveCourse(recent); }
+            const catalog = courseCatalogFromLibrary(library).filter((entry) => !removedCourseIds.has(entry.id));
+            const legacyCourses = library.reports.flatMap((report) => report.canOpen && report.course ? [report.course] : []);
+            setCourseCatalog(catalog);
+            setLoadedCourses(legacyCourses);
+            setCourseIssues(courseIssuesFromLibrary(library, catalog));
           });
         }
       }
@@ -253,6 +330,65 @@ export function AppShell() {
   };
   const persistSettings = (patch: Partial<LocalState["settings"]>) =>
     persist({ ...localState, settings: { ...localState.settings, ...patch } });
+  const courseListEntries = useMemo(() => {
+    const loadedById = new Map(loadedCourses.map((course) => [course.id, course]));
+    const entries = courseCatalog.map((entry) => loadedById.get(entry.id) ?? entry);
+    const catalogIds = new Set(courseCatalog.map((entry) => entry.id));
+    for (const course of loadedCourses) {
+      if (!catalogIds.has(course.id)) entries.push(course);
+    }
+    const removed = new Set(localState.settings.removedCourseIds);
+    return entries.filter((entry) => !removed.has(entry.id));
+  }, [courseCatalog, loadedCourses, localState.settings.removedCourseIds]);
+  const knownCourseIds = useMemo(() => new Set(courseListEntries.map((entry) => entry.id)), [courseListEntries]);
+  const openCourseEntry = async (entry: CourseListEntry): Promise<Course | undefined> => {
+    if (isLoadedCourse(entry)) return entry;
+    if (!entry.canOpen) {
+      setCourseIssues(entry.issues);
+      return undefined;
+    }
+    const loaded = loadedCourses.find((course) => course.id === entry.id);
+    if (loaded) return loaded;
+    const cacheKey = `${entry.directory}\0${entry.id}`;
+    const existing = courseLoadRef.current.get(cacheKey);
+    if (existing) return existing;
+    const request = (async () => {
+      const rootDirectory = localState.settings.courseRoot || entry.directory;
+      const report = await window.znawca?.loadCourseFromLibrary?.(rootDirectory, entry.directory, entry.id);
+      if (!report) return undefined;
+      setCourseIssues(report.issues);
+      if (!report.canOpen || !report.course) return undefined;
+      setLoadedCourses((current) => [...current.filter((course) => course.id !== report.course!.id), report.course!]);
+      return report.course;
+    })();
+    courseLoadRef.current.set(cacheKey, request);
+    try {
+      return await request;
+    } finally {
+      courseLoadRef.current.delete(cacheKey);
+    }
+  };
+  const useSelectedCourse = (course: Course): void => {
+    setCourseTitle(course.title); setActiveCourse(course); setFilters([]); setScreen("setup");
+    persistSettings({
+      recentCourseId: course.id,
+      removedCourseIds: localState.settings.removedCourseIds.filter((id) => id !== course.id),
+    });
+  };
+  const selectCourseEntry = (entry: CourseListEntry): void => {
+    if (isLoadedCourse(entry)) {
+      useSelectedCourse(entry);
+      return;
+    }
+    const loaded = loadedCourses.find((course) => course.id === entry.id);
+    if (loaded) {
+      useSelectedCourse(loaded);
+      return;
+    }
+    void openCourseEntry(entry).then((course) => {
+      if (course) useSelectedCourse(course);
+    });
+  };
   const identity = (courseId: string, title: string, requestedQuestionCount: number): SessionIdentity => ({
     id: `${courseId}:${Date.now()}`,
     courseId,
@@ -271,7 +407,7 @@ export function AppShell() {
   });
   const beginSession = (selected: readonly Question[], sessionMode: Mode) => {
     if (!activeCourse || selected.length === 0) return;
-    playbackRef.current?.cancel();
+    stopAllPlayback();
     const courseId = activeCourse.id;
     const sessionIdentity = identity(courseId, courseTitle, selected.length);
     const mediaPaths = selected.flatMap((entry) => [
@@ -311,7 +447,7 @@ export function AppShell() {
   };
   const submit = () => {
     if (!question || feedback) return;
-    playbackRef.current?.cancel();
+    stopAllPlayback();
     const evaluation = evaluateAnswer(question.acceptedAnswers, answer);
     if (mode === "learning") {
       learningRef.current!.answer(question.id, evaluation, undefined, answer ? [answer] : []);
@@ -390,7 +526,7 @@ export function AppShell() {
     setResult(history); setScreen("results");
   };
   const next = () => {
-    playbackRef.current?.cancel();
+    stopAllPlayback();
     if (mode === "learning") {
       if (learningRef.current!.isComplete()) { completeLearning(); return; }
       setQuestion(learningRef.current!.current());
@@ -402,16 +538,17 @@ export function AppShell() {
     setAnswer(""); setFeedback(undefined); setNeedsAnother(false);
   };
   const saveAndExit = () => {
-    playbackRef.current?.cancel();
+    stopAllPlayback();
     if (mode === "learning" && learningRef.current) {
       persist(saveLearningSession(localState, learningRef.current.save()));
     }
     setScreen("courses");
   };
-  const resume = (record: LearningSessionRecord) => {
-    const course = loadedCourses.find((entry) => entry.id === record.courseId);
+  const resume = async (record: LearningSessionRecord) => {
+    const entry = courseListEntries.find((course) => course.id === record.courseId);
+    const course = entry ? await openCourseEntry(entry) : loadedCourses.find((course) => course.id === record.courseId);
     if (!course) return;
-    playbackRef.current?.cancel();
+    stopAllPlayback();
     const controller = LearningSessionController.resume(record);
     learningRef.current = controller; testingRef.current = undefined;
     setActiveCourse(course); setMode("learning"); setCourseTitle(record.courseTitle);
@@ -439,9 +576,10 @@ export function AppShell() {
     setPlayerVolume(normalized);
     persistSettings({ playerVolume: normalized });
   };
-  const removeCourse = (course: Course) => {
+  const removeCourse = (course: CourseListEntry) => {
     if (!window.confirm(translate(locale, "removeCourseConfirm"))) return;
     setLoadedCourses((current) => current.filter((entry) => entry.id !== course.id));
+    setCourseCatalog((current) => current.filter((entry) => entry.id !== course.id));
     if (activeCourse?.id === course.id) {
       setActiveCourse(undefined);
       setCourseTitle("");
@@ -458,18 +596,22 @@ export function AppShell() {
     if (!rootDirectory || !window.znawca?.scanCourseRoot) return;
     const library = await window.znawca.scanCourseRoot(rootDirectory);
     const removedCourseIds = new Set(localState.settings.removedCourseIds);
-    const visibleReports = library.reports.filter((report) =>
-      !report.course || !removedCourseIds.has(report.course.id));
-    const courses = visibleReports.flatMap((report) =>
-      report.canOpen && report.course ? [report.course] : []);
-    setLoadedCourses(courses);
-    setCourseIssues(visibleReports.flatMap((report) => report.issues));
+    const catalog = courseCatalogFromLibrary(library).filter((entry) => !removedCourseIds.has(entry.id));
+    const refreshedIds = new Set(catalog.map((entry) => entry.id));
+    const legacyCourses = library.reports.flatMap((report) =>
+      report.canOpen && report.course && !removedCourseIds.has(report.course.id) ? [report.course] : []);
+    setCourseCatalog(catalog);
+    setLoadedCourses((current) => [
+      ...current.filter((course) => refreshedIds.has(course.id)),
+      ...legacyCourses.filter((course) => !current.some((entry) => entry.id === course.id)),
+    ]);
+    setCourseIssues(courseIssuesFromLibrary(library, catalog));
     if (activeCourse) {
-      const refreshed = courses.find((course) => course.id === activeCourse.id);
+      const refreshed = loadedCourses.find((course) => course.id === activeCourse.id);
       if (refreshed) {
         setActiveCourse(refreshed);
         setCourseTitle(refreshed.title);
-      } else {
+      } else if (!refreshedIds.has(activeCourse.id)) {
         setActiveCourse(undefined);
         setCourseTitle("");
         setFilters([]);
@@ -481,26 +623,26 @@ export function AppShell() {
     if (importMode && window.znawca?.chooseCourseRoot) {
       const library = await window.znawca.chooseCourseRoot(importMode);
       if (!library) return;
+      const catalog = courseCatalogFromLibrary(library);
       const courses = library.reports.flatMap((report) =>
         report.canOpen && report.course ? [report.course] : []);
-      setCourseIssues(library.reports.flatMap((report) => report.issues));
+      setCourseCatalog(catalog);
+      setLoadedCourses((current) => [...current.filter((entry) => !courses.some((course) => course.id === entry.id)), ...courses]);
+      setCourseIssues(courseIssuesFromLibrary(library, catalog));
       setImportNotice(library.organization
         ? formatOrganizationNotice(locale, library.organization)
         : undefined);
-      if (courses.length === 0) return;
-      const restoredCourseIds = new Set(courses.map((course) => course.id));
-      setLoadedCourses(courses);
+      if (catalog.length === 0 && courses.length === 0) return;
+      const restoredCourseIds = new Set([...catalog.map((entry) => entry.id), ...courses.map((course) => course.id)]);
       persist({
         ...localState,
         settings: {
           ...localState.settings,
           courseRoot: library.rootDirectory,
           removedCourseIds: localState.settings.removedCourseIds.filter((id) => !restoredCourseIds.has(id)),
-          recentCourseId: courses[0].id,
+          recentCourseId: catalog.find((entry) => entry.canOpen)?.id ?? courses[0]?.id,
         },
       });
-      setCourseTitle(courses[0].title);
-      setActiveCourse(courses[0]);
       setFilters([]);
       return;
     }
@@ -510,6 +652,7 @@ export function AppShell() {
     setCourseIssues(report.issues);
     if (report.canOpen && report.course) {
       setLoadedCourses((current) => [...current.filter((entry) => entry.id !== report.course!.id), report.course!]);
+      setCourseCatalog((current) => [...current.filter((entry) => entry.id !== report.course!.id), courseToCatalogEntry(report.course!, report.issues, report.canOpen)]);
       setCourseTitle(report.course.title);
       setActiveCourse(report.course);
       setFilters([]);
@@ -544,7 +687,7 @@ export function AppShell() {
   return <main className="app-shell">
     <Header locale={locale} onHome={() => setScreen("courses")} onSettings={() => setSettingsOpen(true)} />
     <div className="workspace">
-      <section className={`content${screen === "courses" ? " content-courses" : ""}${screen === "setup" ? " content-setup" : ""}${(screen === "difficulty" || screen === "learning-history" || screen === "test-history") ? " content-list" : ""}`}>
+      <section className={`content${screen === "courses" ? " content-courses" : ""}${screen === "setup" ? " content-setup" : ""}${screen === "session" ? " content-session" : ""}${(screen === "difficulty" || screen === "learning-history" || screen === "test-history") ? " content-list" : ""}`}>
         {contextCourseId && (screen === "setup" || screen === "learning-history" || screen === "test-history" || screen === "difficulty") &&
           <CourseContextNav locale={locale} course={courseTitle} screen={screen}
             learningHistoryCount={contextLearningHistory.length}
@@ -553,13 +696,10 @@ export function AppShell() {
             onCourses={() => setScreen("courses")} onSetup={() => setScreen("setup")}
             onLearningHistory={() => setScreen("learning-history")}
             onTestHistory={() => setScreen("test-history")} onDifficulty={() => setScreen("difficulty")} />}
-        {screen === "courses" && <Courses locale={locale} loadedCourses={loadedCourses} issues={courseIssues} importNotice={importNotice} resumable={Object.values(localState.learningSessions).filter((record) => loadedCourses.some((course) => course.id === record.courseId))} onResume={resume} onRemove={removeCourse} canRefresh={Boolean(localState.settings.courseRoot && window.znawca?.scanCourseRoot)} onRefresh={refreshCourseLibrary} onAdd={async () => {
+        {screen === "courses" && <Courses locale={locale} courses={courseListEntries} issues={courseIssues} importNotice={importNotice} resumable={Object.values(localState.learningSessions).filter((record) => knownCourseIds.has(record.courseId))} onResume={resume} onRemove={removeCourse} canRefresh={Boolean(localState.settings.courseRoot && window.znawca?.scanCourseRoot)} onRefresh={refreshCourseLibrary} onAdd={async () => {
           if (window.znawca?.chooseCourseRoot) setImportChoiceOpen(true);
           else await addCourse();
-        }} onSelect={(selected) => {
-          setCourseTitle(selected.title); setActiveCourse(selected); setFilters([]); setScreen("setup");
-          persistSettings({ recentCourseId: selected.id });
-        }} />}
+        }} onSelect={selectCourseEntry} />}
         {screen === "setup" && activeCourse && <Setup locale={locale} course={courseTitle} courseData={activeCourse} filters={filters} setFilters={setFilters} kinds={kinds} setKinds={changeKinds} directions={directions} setDirections={changeDirections} coverageMode={coverageMode} setCoverageMode={changeCoverageMode} questionLimit={questionLimit} setQuestionLimit={changeQuestionLimit} mode={mode} setMode={changeMode} timer={timer} setTimer={changeTimer} strict={strict} setStrict={changeStrict} questionSet={questionSet} capabilitySet={capabilitySet} progress={localState.knowledgeProgress.filter((record) => record.courseId === activeCourse.id)} onStart={start} />}
         {screen === "session" && question && <Session locale={locale} question={question} course={courseTitle} speechCourse={activeCourse} speechUrls={questionSpeech} onPlaySpeech={playSpeech} mode={mode} timer={timer} volume={playerVolume} onVolume={changePlayerVolume} position={position} total={sessionTotal} units={unitCounts} answer={answer} setAnswer={setAnswer} feedback={feedback} needsAnother={needsAnother} onSubmit={submit} onTimeout={timeout} onSaveExit={saveAndExit} onNext={next} />}
         {screen === "results" && <Results locale={locale} learningTotal={sessionTotal} history={result} reviewOpen={reviewOpen} setReviewOpen={setReviewOpen} onAgain={start} onCourses={() => setScreen("courses")} volume={playerVolume} onVolume={setPlayerVolume} />}
@@ -747,17 +887,21 @@ const courseMediaLabels: Record<Locale, { images: string; audio: string; video: 
   ar: { images: "صور", audio: "صوت", video: "فيديو", text: "نص" },
   ru: { images: "Изображения", audio: "Аудио", video: "Видео", text: "Текст" },
 };
-interface CoursesProps { locale: Locale; loadedCourses: Course[]; issues: readonly CourseIssue[]; importNotice?: string; resumable: LearningSessionRecord[]; canRefresh: boolean; onResume(record: LearningSessionRecord): void; onAdd(): Promise<void>; onRefresh(): Promise<void>; onSelect(course: Course): void; onRemove(course: Course): void }
-function Courses({ locale, loadedCourses, issues, importNotice, resumable, canRefresh, onResume, onAdd, onRefresh, onSelect, onRemove }: CoursesProps) {
+interface CoursesProps { locale: Locale; courses: CourseListEntry[]; issues: readonly CourseIssue[]; importNotice?: string; resumable: LearningSessionRecord[]; canRefresh: boolean; onResume(record: LearningSessionRecord): void; onAdd(): Promise<void>; onRefresh(): Promise<void>; onSelect(course: CourseListEntry): void; onRemove(course: CourseListEntry): void }
+function Courses({ locale, courses, issues, importNotice, resumable, canRefresh, onResume, onAdd, onRefresh, onSelect, onRemove }: CoursesProps) {
   return <div className="page-courses">
     <div className="page-heading"><div><p className="eyebrow">{translate(locale, "courses").toUpperCase()}</p><h1>{translate(locale, "chooseMaster")}</h1><p>{translate(locale, "privacyDetail")}</p></div><div className="page-heading-actions">{canRefresh && <button className="metal-button" type="button" onClick={() => void onRefresh()}>{translate(locale, "refreshLibrary")}</button>}<button className="gold-button" type="button" onClick={() => void onAdd()}>{translate(locale, "addCourse")}</button></div></div>
     <div className="courses-scrollable">
       {resumable.map((record) => <div className="local-banner" key={record.id}><strong>{record.courseTitle}</strong><span>{translate(locale, "unfinishedSession")} {new Date(record.savedAt).toLocaleString(locale)}</span><button className="gold-button" type="button" onClick={() => onResume(record)}>{translate(locale, "resumeLearning")}</button></div>)}
       {importNotice && <div className="local-banner import-result" role="status"><strong>{importNotice}</strong></div>}
       {issues.length > 0 && <div className="course-errors" role="alert"><strong>{issues.some((entry) => entry.severity === "error") ? translate(locale, "courseNeedsAttention") : translate(locale, "courseWarnings")}</strong>{issues.map((entry, index) => { const text = entry.code === "ITEM_NAME_EMPTY" ? formatItemNameEmpty(locale, entry.location.row ?? 0, entry.params?.filledColumns ?? []) : { message: entry.message, suggestion: entry.suggestion }; return <article key={`${entry.code}-${entry.location.file}-${index}`}><p><b>{entry.code}</b> — {text.message} {text.suggestion}</p><small>{formatIssueLocation(locale, entry)}</small></article>; })}</div>}
-      <div className="course-grid">{loadedCourses.map((entry) => <CourseCard locale={locale} key={entry.id} name={entry.title} meta={`${entry.items.length} ${translate(locale, "objects")} / ${entry.columns.length}`} symbol={entry.title.slice(0, 1).toUpperCase()} onClick={() => onSelect(entry)} onRemove={() => onRemove(entry)} />)}</div>
+      <div className="course-grid">{courses.map((entry) => <CourseCard locale={locale} key={entry.id} name={entry.title} meta={courseCardMeta(locale, entry)} symbol={entry.title.slice(0, 1).toUpperCase()} onClick={() => void onSelect(entry)} onRemove={() => onRemove(entry)} />)}</div>
     </div>
   </div>;
+}
+function courseCardMeta(locale: Locale, entry: CourseListEntry): string {
+  if (isLoadedCourse(entry)) return `${entry.items.length} ${translate(locale, "objects")} / ${entry.columns.length}`;
+  return entry.languageCode ? entry.languageCode : entry.workbookPaths.length > 1 ? `${entry.workbookPaths.length} XLSX` : "XLSX";
 }
 function CourseCard({ locale, name, meta, symbol, onClick, onRemove }: { locale: Locale; name: string; meta: string; symbol: string; onClick(): void; onRemove?(): void }) {
   return <article className={`course-card ${name.toLowerCase()}`}><div className="course-art"><span>{symbol}</span></div><div className="course-copy"><h2>{name}</h2><p>{meta}</p><div className="course-actions"><button className="metal-button" type="button" onClick={onClick}>{translate(locale, "openCourse")}</button>{onRemove && <button className="course-remove-button" type="button" aria-label={`${translate(locale, "removeCourse")} ${name}`} onClick={onRemove}>{translate(locale, "removeCourse")}</button>}</div></div></article>;

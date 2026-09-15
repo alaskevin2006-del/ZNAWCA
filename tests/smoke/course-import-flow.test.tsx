@@ -123,6 +123,81 @@ describe("course import flow", () => {
     expect(scanCourseRoot).toHaveBeenCalledTimes(2);
   });
 
+  it("keeps saved library startup lightweight and loads only the opened course", async () => {
+    const state = defaultLocalState();
+    state.settings.courseRoot = "C:/Courses";
+    const loadCourseFromLibrary = vi.fn().mockResolvedValue({
+      canOpen: true,
+      issues: [],
+      course: smokeCourse,
+    });
+    window.znawca = {
+      chooseCourse: vi.fn(),
+      scanCourseRoot: vi.fn().mockResolvedValue({
+        rootDirectory: "C:/Courses",
+        reports: [],
+        catalog: [{
+          id: smokeCourse.id,
+          title: smokeCourse.title,
+          directory: smokeCourse.directory,
+          workbookPaths: [smokeCourse.workbookPath],
+          issues: [],
+          canOpen: true,
+        }],
+      }),
+      loadCourseFromLibrary,
+      loadLocalState: vi.fn().mockResolvedValue(state),
+      saveLocalState: vi.fn(),
+    };
+
+    render(<AppShell />);
+
+    expect(await screen.findByText("Smoke Course")).toBeVisible();
+    expect(loadCourseFromLibrary).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open course" }));
+
+    expect(await screen.findByText("Shape this session")).toBeVisible();
+    expect(loadCourseFromLibrary).toHaveBeenCalledWith("C:/Courses", "C:/Courses/Smoke", "smoke-course");
+  });
+
+  it("does not start a duplicate course load when the same catalog card is clicked twice", async () => {
+    const state = defaultLocalState();
+    state.settings.courseRoot = "C:/Courses";
+    let resolveLoad: (value: { canOpen: true; issues: []; course: typeof smokeCourse }) => void = () => undefined;
+    const loadCourseFromLibrary = vi.fn().mockReturnValue(new Promise((resolve) => {
+      resolveLoad = resolve as typeof resolveLoad;
+    }));
+    window.znawca = {
+      chooseCourse: vi.fn(),
+      scanCourseRoot: vi.fn().mockResolvedValue({
+        rootDirectory: "C:/Courses",
+        reports: [],
+        catalog: [{
+          id: smokeCourse.id,
+          title: smokeCourse.title,
+          directory: smokeCourse.directory,
+          workbookPaths: [smokeCourse.workbookPath],
+          issues: [],
+          canOpen: true,
+        }],
+      }),
+      loadCourseFromLibrary,
+      loadLocalState: vi.fn().mockResolvedValue(state),
+      saveLocalState: vi.fn(),
+    };
+
+    render(<AppShell />);
+
+    const open = await screen.findByRole("button", { name: "Open course" });
+    fireEvent.click(open);
+    fireEvent.click(open);
+    expect(loadCourseFromLibrary).toHaveBeenCalledTimes(1);
+
+    resolveLoad({ canOpen: true, issues: [], course: smokeCourse });
+    expect(await screen.findByText("Shape this session")).toBeVisible();
+  });
+
   it("asks whether to organize, then scans through the selected import mode", async () => {
     const chooseCourseRoot = vi.fn().mockResolvedValue({
       rootDirectory: "C:/Courses",

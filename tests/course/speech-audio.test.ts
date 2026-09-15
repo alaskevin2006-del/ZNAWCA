@@ -6,7 +6,7 @@ import { loadCourseVersions } from "../../src/core/course/loader.js";
 import { buildCourseQuestionSet } from "../../src/core/quiz/question-set.js";
 import type { Course } from "../../src/core/course/types.js";
 import type { Question } from "../../src/core/quiz/types.js";
-import { columnLetters, speechAudioForOption, speechAudioForQuestion } from "../../src/core/course/speech-audio.js";
+import { columnLetters, speechAudioForAnswer, speechAudioForOption, speechAudioForQuestion } from "../../src/core/course/speech-audio.js";
 import { createMultilingualCourseFixture } from "./xlsx-fixture.js";
 
 // ZNAWCA-15 S3 自动验收（WORKBUDDY-TASKS.md §5，D-22）：
@@ -138,5 +138,48 @@ describe("V2 speech directory consumption (D-22)", () => {
     expect(columnLetters(2)).toBe("B");
     expect(columnLetters(3)).toBe("C");
     expect(columnLetters(27)).toBe("AA");
+  });
+
+  it("narrates the correct answer cell for text questions (D-22 answer speech)", () => {
+    // 正向文字题：答案＝属性值 → 该属性列单元格（C2）。
+    const forward = questionOf(eng, "name-to-property", "common cuckoo");
+    expect(speechAudioForAnswer(eng, forward)).toEqual([expect.stringContaining("/speech/Eng/C2.mp3")]);
+    // 反向文字题：答案＝名称 → 名称列单元格（B2）。
+    const reverse = questionOf(eng, "property-to-name", "common cuckoo");
+    expect(speechAudioForAnswer(eng, reverse)).toEqual([expect.stringContaining("/speech/Eng/B2.mp3")]);
+    // 媒体题（图片）答案＝名称 → 名称列单元格；题干媒体不由 speech 朗读。
+    const imageQuestion = questionOf(eng, "image-to-name", "common cuckoo");
+    expect(speechAudioForAnswer(eng, imageQuestion)).toEqual([expect.stringContaining("/speech/Eng/B2.mp3")]);
+    // 各语言播各自录音。
+    const ruReverse = questionOf(ru, "property-to-name", "обыкновенная кукушка");
+    expect(speechAudioForAnswer(ru, ruReverse)).toEqual([expect.stringContaining("/speech/Ru/B2.mp3")]);
+  });
+
+  it("returns an empty answer speech chain for media answers and missing recordings", () => {
+    // 答案本身是音频（audio-to-name）：答案音频由媒体链播放，不朗读文字。
+    const audioToName: Question = {
+      id: "q-audio",
+      objectId: "common cuckoo",
+      kind: "input",
+      direction: "audio-to-name",
+      prompt: "Identify the object",
+      acceptedAnswers: ["Common Cuckoo"],
+      media: { kind: "audio", path: "cuckoo.mp3" },
+    };
+    expect(speechAudioForAnswer(eng, audioToName)).toEqual([]);
+    // 答案是媒体（name-to-audio）同样不朗读文字。
+    const nameToAudio: Question = {
+      id: "q-n2a",
+      objectId: "common cuckoo",
+      kind: "choice",
+      direction: "name-to-audio",
+      prompt: "Common Cuckoo",
+      acceptedAnswers: ["cuckoo.mp3"],
+    };
+    expect(speechAudioForAnswer(eng, nameToAudio)).toEqual([]);
+    // 无对应录音的单元格（行 3 的 C3 缺失）→ 空链，不启用 TTS。
+    const sparrowForward = questionOf(eng, "name-to-property", "house sparrow");
+    expect(speechAudioForAnswer(eng, sparrowForward)).toEqual([]);
+    expect(speechAudioForAnswer({ ...eng, speech: undefined }, questionOf(eng, "property-to-name", "common cuckoo"))).toEqual([]);
   });
 });

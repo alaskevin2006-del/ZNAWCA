@@ -122,7 +122,8 @@ export class PlaybackCoordinator {
  * D-13：确定某题的“正确答案音频”。本轮沿用 V1 语义，只接受两类可可靠确定的情况：
  * - `audio-to-name`：题干本身就是正确答案的声音（question.media 为音频）；
  * - `name-to-audio`：正确选项（value 在 acceptedAnswers 中）是音频。
- * 其余方向当前 V1 无法可靠确定正确答案音频，返回 undefined（调用方跳过并记录，不得猜测）。
+ * 其余方向当前无法可靠确定正确答案媒体，返回 undefined（调用方跳过并记录，不得猜测）；
+ * V2 文字答案的朗读回退由 `answerSpeech` 参数提供（D-22 speech 坐标）。
  */
 export function answerAudioPath(question: Question): string | undefined {
   if (question.direction === "audio-to-name" && question.media?.kind === "audio") {
@@ -154,11 +155,14 @@ export interface FeedbackPlaybackParams {
   readonly random: RandomSource;
   readonly previousCorrectIndex: number;
   readonly previousIncorrectIndex: number;
+  /** D-22：文字题正确答案的单元格朗读链（V2 speech 坐标）。仅当无可靠答案媒体时接在链尾。 */
+  readonly answerSpeech?: readonly string[];
 }
 
 /**
  * D-12 + D-13：完全正确使用 correct 集合，部分正确/错误/超时（fullyCorrect=false）
- * 使用 incorrect 集合；选择结果随后接正确答案音频（若可确定）。纯函数，便于测试复现。
+ * 使用 incorrect 集合；选择结果随后接正确答案音频（若可确定），无答案媒体时回退
+ * 接 answerSpeech（D-22 文字答案朗读）。纯函数，便于测试复现。
  */
 export function buildFeedbackPlaybackChain(params: FeedbackPlaybackParams): FeedbackPlaybackSelection {
   const pool = params.fullyCorrect ? params.feedbackSounds?.correct ?? [] : params.feedbackSounds?.incorrect ?? [];
@@ -167,7 +171,11 @@ export function buildFeedbackPlaybackChain(params: FeedbackPlaybackParams): Feed
   const chain: string[] = [];
   if (soundIndex >= 0 && soundIndex < pool.length) chain.push(pool[soundIndex]);
   const answerPath = answerAudioPath(params.question);
-  if (answerPath) chain.push(answerPath);
+  if (answerPath) {
+    chain.push(answerPath);
+  } else if (params.answerSpeech && params.answerSpeech.length > 0) {
+    chain.push(...params.answerSpeech);
+  }
   return {
     chain,
     correctIndex: params.fullyCorrect ? soundIndex : params.previousCorrectIndex,

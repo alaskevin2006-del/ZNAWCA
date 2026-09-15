@@ -5,7 +5,7 @@
  * 例如 `Birds_Eng.xlsx`、`Birds_Ru.xlsx`。语言后缀是 2~3 个 ASCII 字母。
  *
  * 本模块只做文件名解析，不猜测版本；是否按 V2 多语言处理由 loader 决定
- * （仅在目录存在多个工作簿且都能解析为同一基础名时触发）。
+ * （目录内全部工作簿均为同基础名的语言后缀时触发，单个语言工作簿也算）。
  */
 
 export interface LanguageWorkbookName {

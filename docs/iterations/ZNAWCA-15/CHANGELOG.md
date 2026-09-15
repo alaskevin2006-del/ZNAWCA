@@ -196,3 +196,23 @@
 - S2 交付：本 CHANGELOG、4 个提交（`52941f5`/`5512ae7`/`c3386a8`/`66dd876`）、修改文件 `src/core/quiz/{scoring,generator,question-set,course-adapter}.ts`、新增 `tests/quiz/header-rules.test.ts` 及 `tests/quiz/scoring.test.ts` 扩展。`filter.ts` 审计后无需修改。
 - 未 git push（按硬约束）。
 - 按本任务硬约束未修改 NIGHT-OPS.md 状态板（任务指令明确禁改），状态板更新由主控执行。
+
+### 主控直派：V2 完整测试样例（2026-09-12，非任务清单项）
+
+- 触发：主控提出「目前缺乏完整的测试样例」，方案确认后要求生成覆盖全部需求的样例。
+- 新增（全部为新文件，未改 src/）：
+  - `tools/test-data/generate_v2_sample.py`：V2 样例生成器（Pillow + openpyxl + ffmpeg，装在托管 venv `binaries/python/envs/default`）。
+  - `samples/V2-Sample/`（85 文件，2.6 MB，gitignored）：`Countries/`（`Countries_Eng.xlsx` + `Countries_Ru.xlsx` 双语言、图/音/视频全列、多变体、别名、`*`/`$` 列标记、`#Continent`/`#Eurozone` 筛选列、correct/incorrect 提示音、分语言 speech）+ `Minerals/`（单语言、化学式下标 SiO₂/CaMg(CO₃)₂/Fe₂O₃/FeS₂）+ 覆盖点 README。
+  - `tests/course/v2-sample-verify.test.ts`：样例回归 10 项（真实 loader/quiz 栈：零 issue、D-15/16/17/18/19/20/21、4.2 下标、5.1 筛选 OR/AND、D-01 逐值歧义跳过、D-12/D-22 提示音与 speech）；samples 缺失时 `describe.skipIf` 自动跳过，不阻塞 fresh clone。
+- 埋点设计：法德货币同 Euro、波兰/日本国旗颜色同 `White; Red` → 歧义反向跳过；中国货币 `Renminbi/Yuan` → 别名三态判对；波兰主媒体双变体验「不互为干扰项」。
+- 验证：`npx vitest run` ✅ **40 文件 273 项**全过（新增 10 项）。
+- 备注：本机 dist 重编译被运行中的 Znawca.exe 锁文件（TS5033 间歇报错），验证改走 vitest 源码路径，不影响结果。
+
+### 主控直派：V2 样例音频补全——真实 TTS 朗读 + 网载正误音效（2026-09-12，非任务清单项）
+
+- 触发：主控提出样例音频仅为合成蜂鸣音，无法耳验「正确答案朗读」的坐标对应关系；要求补全（中性列确认已覆盖）。
+- 变更（未改 src/）：
+  - `tools/test-data/generate_v2_sample.py`：speech 坐标音频改用 edge-tts 朗读单元格真实文本（En: en-US-AriaNeural / Ru: ru-RU-SvetlanaNeural，venv 新增依赖 edge-tts）；正误音效改下载 Google Actions 音效库 ogg 转 mp3（pop / bowling_strike / crash / clang_and_wobble）；Minerals 补 correct/incorrect 4 枚；朗读坐标新增 D 列（Countries 国旗颜色、Minerals 硬度）。TTS 与下载失败均自动回退合成音，脚本离线可跑。音频全程内存管道（edge-tts 流式字节 → ffmpeg stdin），不落临时文件——规避 WorkBuddy safe-delete 对 `Path.unlink()` 的 fail-closed 拦截。
+  - `samples/V2-Sample/`（123 文件，9.3MB）：Countries speech 32×2 段（含 D 列）、Minerals speech 18 段、两课程各 4 枚网载 mp3；README 更新音效来源署名。
+  - `tests/course/v2-sample-verify.test.ts`：D-12/D-22 用例扩展（Minerals 提示音 2+2、D1-F/H1-R 坐标存在）。
+- 验证：`npx vitest run` ✅ 40 文件 273 项全过；生成日志零回退（82 段 TTS + 8 枚音效全部真实素材）。

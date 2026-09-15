@@ -133,7 +133,8 @@ describe("progress units: skipped content is not counted (D-24)", () => {
       ["gull.jpg", "European Herring Gull", "", "two"],
     ];
     await writeWorkbookRows(workbook, rows);
-    // 单后缀工作簿按 V1 加载：补第二个语言工作簿才按 V2（单元格媒体模型）展开。
+    // 两个语言工作簿（Units_Eng/Units_Ru）共享基础名 → 按 V2（单元格媒体模型）展开；
+    // 单个语言后缀工作簿同样按 V2 加载（loader D-16 放宽）。
     await writeWorkbookRows(join(directory, "Units_Ru.xlsx"), rows);
     const { mkdir, writeFile } = await import("node:fs/promises");
     await mkdir(join(directory, "media"), { recursive: true });

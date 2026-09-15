@@ -118,7 +118,19 @@ export function courseObjects(course: Course): CourseObject[] {
       (filterFields.has(field) ? filters : attributes)[field] = values;
     }
     const media: Partial<Record<MediaKind, string[]>> = {};
-    for (const asset of item.media) (media[asset.kind] ??= []).push(asset.path);
+    const mediaPaths = new Set<string>();
+    const addMedia = (kind: MediaKind, path: string): void => {
+      if (mediaPaths.has(path)) return;
+      mediaPaths.add(path);
+      (media[kind] ??= []).push(path);
+    };
+    for (const asset of item.media) addMedia(asset.kind, asset.path);
+    // V2：属性单元格媒体（cellMedia）并入媒体池，供 name-to-media / media-to-name
+    // 出题消费。纯媒体列的 attributes 为空，已被 skippedFields（无区分度）排除，
+    // 不会同时产生该列的文字题。
+    for (const assets of Object.values(item.cellMedia ?? {})) {
+      for (const asset of assets) addMedia(asset.kind, asset.path);
+    }
     return { id: item.id, name: item.name, attributes, filters, media };
   });
 }

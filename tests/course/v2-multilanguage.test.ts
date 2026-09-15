@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -7,7 +7,7 @@ import { courseObjects } from "../../src/core/quiz/course-adapter.js";
 import { generateQuestion } from "../../src/core/quiz/generator.js";
 import type { CourseLoadReport } from "../../src/core/course/types.js";
 import type { RandomSource } from "../../src/core/quiz/types.js";
-import { createCourseFixture, createMultilingualCourseFixture, writeWorkbookRows } from "./xlsx-fixture.js";
+import { createCourseFixture, createMultilingualCourseFixture, JPEG_BYTES, MP3_BYTES, writeWorkbookRows } from "./xlsx-fixture.js";
 
 // ZNAWCA-15 S1 自动验收（WORKBUDDY-TASKS.md §3）：
 // 1. A1 在不同语言工作簿显示不同课程名。
@@ -174,6 +174,63 @@ describe("V1 read-only compatibility (D-15)", () => {
       expect(report.course?.formatVersion).toBe("v1");
       expect(report.course?.nameColumnIndex).toBe(1);
       expect(report.course?.items).toHaveLength(4);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("V2 cell media reaches question generation (single-language V2)", () => {
+  it("generates media questions from cellMedia columns in one language workbook", async () => {
+    const root = await mkdtemp(join(tmpdir(), "znawca-cellmedia-"));
+    try {
+      const { directory } = await createCourseFixture(root, "CellMedia", "CellMedia_Eng.xlsx", [
+        ["Birds of Europe", "Name / Bird", "Diet / Food", "Song / Recording"],
+        ["cuckoo.jpg", "Common Cuckoo", "insects", "cuckoo-song.mp3"],
+        ["gull.jpg", "European Herring Gull", "fish", "gull-song.mp3"],
+        ["sparrow.jpg", "House Sparrow", "seeds", "sparrow-song.mp3"],
+      ]);
+      // 共享 media/：A 列主媒体（图片）与单元格媒体（音频）。
+      await mkdir(join(directory, "media"), { recursive: true });
+      await writeFile(join(directory, "media", "cuckoo.jpg"), JPEG_BYTES);
+      await writeFile(join(directory, "media", "gull.jpg"), JPEG_BYTES);
+      await writeFile(join(directory, "media", "sparrow.jpg"), JPEG_BYTES);
+      await writeFile(join(directory, "media", "cuckoo-song.mp3"), MP3_BYTES);
+      await writeFile(join(directory, "media", "gull-song.mp3"), MP3_BYTES);
+      await writeFile(join(directory, "media", "sparrow-song.mp3"), MP3_BYTES);
+      // 单个语言后缀工作簿 → 单语言 V2（D-16 放宽后不再要求多语言工作簿）。
+      const reports = await loadCourseVersions(directory);
+      expect(reports).toHaveLength(1);
+      expect(reports[0]?.canOpen).toBe(true);
+      expect(reports[0]?.issues.filter((issue) => issue.severity === "error")).toEqual([]);
+      const course = reports[0]!.course!;
+      expect(course.formatVersion).toBe("v2");
+
+      const cuckoo = course.items.find((item) => item.name === "Common Cuckoo")!;
+      // 属性单元格媒体解析为 cellMedia（不进入文字答案）。
+      expect(cuckoo.cellMedia?.["Song / Recording"]?.map((asset) => asset.kind)).toEqual(["audio"]);
+      expect(cuckoo.values["Song / Recording"]).toEqual([]);
+
+      const { buildCourseQuestionSet } = await import("../../src/core/quiz/question-set.js");
+      const objects = courseObjects(course);
+      const cuckooObject = objects.find((object) => object.name === "Common Cuckoo")!;
+      // courseObjects 把 cellMedia 并入媒体池：音频可用于 name-to-audio / audio-to-name。
+      expect(cuckooObject.media?.audio).toEqual([
+        join(directory, "media", "cuckoo-song.mp3"),
+      ]);
+      expect(cuckooObject.media?.image).toEqual([join(directory, "media", "cuckoo.jpg")]);
+
+      const set = buildCourseQuestionSet({ course, teachingStyle: "strict" });
+      // 媒体列出题：音频题（单元格媒体）与图片题（A 列主媒体）都生成。
+      expect(set.questions.some((entry) =>
+        entry.direction === "name-to-audio" && entry.objectId === "common cuckoo")).toBe(true);
+      expect(set.questions.some((entry) =>
+        entry.direction === "audio-to-name" && entry.objectId === "common cuckoo")).toBe(true);
+      expect(set.questions.some((entry) =>
+        entry.direction === "image-to-name" && entry.objectId === "common cuckoo")).toBe(true);
+      // 文字题不受影响：Diet 列照常出题。
+      expect(set.questions.some((entry) =>
+        entry.direction === "name-to-property" && entry.objectId === "common cuckoo")).toBe(true);
     } finally {
       await rm(root, { recursive: true, force: true });
     }

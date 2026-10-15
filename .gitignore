@@ -1,7 +1,9 @@
 # Dependencies and build output
 node_modules/
-dist/
-release/
+/dist/
+/dist.bak*/
+/release/
+/release-*/
 coverage/
 .vite/
 
@@ -19,9 +21,12 @@ Thumbs.db
 ~$*.docx
 
 # Source reference material and large media are kept outside Git.
-docs/requirements/source/
+docs/requirements/
 samples/
 artifacts/
+/优化方案/
+/feedback1_imgs/
+/ZNAWCA用户反馈1.docx
 
 # Temporary working files
 .codex-tmp/
@@ -34,8 +39,3 @@ assets/*
 
 # WorkBuddy tool state (not part of the project source)
 .workbuddy/
-
-# 旧构建产物备份（2026-09-08 加入，待主控决定去留）
-dist.bak/
-release-s0/
-release-s0.bak/

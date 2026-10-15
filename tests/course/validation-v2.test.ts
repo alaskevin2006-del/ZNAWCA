@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { validateV2Worksheet } from "../../src/core/course/validation-v2.js";
+import { validateV2Worksheet } from "../../src/main/course/validation-v2.js";
 import type { WorksheetData } from "../../src/core/course/types.js";
 
 function worksheet(cells: WorksheetData["cells"]): WorksheetData {

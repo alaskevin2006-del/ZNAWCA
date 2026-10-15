@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { AppShell } from "../../src/renderer/app-shell/AppShell";
+import { AppShell } from "../../src/renderer/app/AppShell";
 
 describe("AppShell", () => {
   it("renders the offline desktop foundation without a preload bridge", () => {

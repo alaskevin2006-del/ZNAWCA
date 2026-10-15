@@ -1,8 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Course } from "../../src/core/course/types";
-import { defaultLocalState } from "../../src/core/persistence";
-import { AppShell } from "../../src/renderer/app-shell/AppShell";
+import { defaultLocalState } from "../../src/application/state/defaults.js";
+import { AppShell } from "../../src/renderer/app/AppShell";
 import { markCourseMastered } from "./course-fixture";
 
 const mediaCourse: Course = {
@@ -85,7 +85,7 @@ describe("P0 desktop acceptance contract", () => {
     expect(screen.getByText(/Incorrect\s+3/i)).toBeVisible();
     expect(screen.queryByText(/Partial\s+\d+/i)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Review answers/i })).toBeEnabled();
-    expect(saveLocalState).toHaveBeenCalledWith(expect.objectContaining({
+    await waitFor(() => expect(saveLocalState).toHaveBeenCalledWith(expect.objectContaining({
       testHistory: expect.arrayContaining([
         expect.objectContaining({
           courseId: "media-course",
@@ -97,7 +97,7 @@ describe("P0 desktop acceptance contract", () => {
           }),
         }),
       ]),
-    }));
+    })));
 
     fireEvent.click(screen.getAllByRole("button", { name: "Courses" })[0]!);
     fireEvent.click(screen.getAllByRole("button", { name: "Open course" }).at(-1)!);

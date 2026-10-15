@@ -1,18 +1,9 @@
 import { describe, expect, it } from "vitest";
-import {
-  LocalStateRepository,
-  appendLearningHistory,
-  appendTestHistory,
-  clearCourseData,
-  clearCourseDifficulty,
-  defaultLocalState,
-  getLearningSession,
-  parseLocalState,
-  rememberMedia,
-  removeLearningSession,
-  saveLearningSession,
-} from "../../src/core/persistence";
-import type { LearningHistoryRecord, LearningSessionRecord, TestHistoryRecord } from "../../src/core/session";
+import { LocalStateRepository } from "../../src/main/storage/key-value-repository.js";
+import { appendLearningHistory, appendTestHistory, clearCourseData, clearCourseDifficulty, getLearningSession, rememberMedia, removeLearningSession, saveLearningSession } from "../../src/application/state/updates.js";
+import { defaultLocalState } from "../../src/application/state/defaults.js";
+import { parseLocalState } from "../../src/main/storage/parse.js";
+import type { LearningHistoryRecord, LearningSessionRecord, TestHistoryRecord } from "../../src/core/session/index";
 
 describe("local state", () => {
   it("recovers safely from corrupt or incompatible data", () => {

@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { loadCourse, loadCourseVersions } from "../../src/core/course/loader.js";
+import { loadCourse, loadCourseVersions } from "../../src/main/course/loader.js";
 import { courseObjects } from "../../src/core/quiz/course-adapter.js";
 import { generateQuestion } from "../../src/core/quiz/generator.js";
 import type { CourseLoadReport } from "../../src/core/course/types.js";

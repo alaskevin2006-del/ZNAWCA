@@ -2,8 +2,8 @@ import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { discoverCourses } from "../../src/core/course/loader.js";
-import { organizeCourseFiles } from "../../src/core/course/organizer.js";
+import { discoverCourses } from "../../src/main/course/loader.js";
+import { organizeCourseFiles } from "../../src/main/course/organizer.js";
 import { createCourseFixture } from "./xlsx-fixture.js";
 
 describe("course file organizer", () => {

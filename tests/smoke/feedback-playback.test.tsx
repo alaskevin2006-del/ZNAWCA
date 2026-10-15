@@ -2,15 +2,15 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { Course } from "../../src/core/course/types";
 import type { Question } from "../../src/core/quiz/types";
-import { AppShell } from "../../src/renderer/app-shell/AppShell";
+import { AppShell } from "../../src/renderer/app/AppShell";
 import {
   PlaybackCoordinator,
   answerAudioPath,
   buildFeedbackPlaybackChain,
   type AudioFactory,
   type PlayableAudio,
-} from "../../src/renderer/app-shell/feedback-playback";
-import { defaultLocalState } from "../../src/core/persistence";
+} from "../../src/renderer/shared/media/feedback-playback";
+import { defaultLocalState } from "../../src/application/state/defaults.js";
 import { installSmokeCourse, smokeCourse } from "./course-fixture";
 
 class FakeAudio implements PlayableAudio {
@@ -293,6 +293,59 @@ describe("buildFeedbackPlaybackChain", () => {
       answerSpeech: ["speech://B2.mp3"],
     });
     expect(selection.chain).toEqual(["prompt.mp3"]);
+  });
+});
+
+describe("manual media mutual exclusion (audio + video)", () => {
+  // 客户反馈：点另一个音频时上一个必须停止（且进度归零，不双击）。
+  // 互斥走 document 级捕获监听 + HTMLMediaElement 判定，<video> 同属该类，
+  // 因此音频/视频任意组合都被同一逻辑覆盖。jsdom 不实现真实播放，
+  // 用 spy 观测 pause()、用 defineProperty 观测 currentTime 归零。
+  function fakeMedia(tag: "audio" | "video", startAt: number): HTMLMediaElement {
+    const element = document.createElement(tag);
+    Object.defineProperty(element, "currentTime", { value: startAt, writable: true, configurable: true });
+    vi.spyOn(element, "pause").mockImplementation(() => {});
+    document.body.appendChild(element);
+    return element as HTMLMediaElement;
+  }
+
+  async function renderShell(): Promise<void> {
+    installSmokeCourse(defaultLocalState(), smokeCourse);
+    render(<AppShell />);
+    await screen.findByRole("button", { name: /Open course/ });
+  }
+
+  it("stops and resets an audio when a video starts playing", async () => {
+    await renderShell();
+    const audio = fakeMedia("audio", 12);
+    const video = fakeMedia("video", 0);
+    fireEvent(audio, new Event("play"));
+    fireEvent(video, new Event("play"));
+    expect(audio.pause).toHaveBeenCalled();
+    expect(audio.currentTime).toBe(0);
+    audio.remove();
+    video.remove();
+  });
+
+  it("stops and resets a video when another video starts playing", async () => {
+    await renderShell();
+    const first = fakeMedia("video", 7);
+    const second = fakeMedia("video", 0);
+    fireEvent(first, new Event("play"));
+    fireEvent(second, new Event("play"));
+    expect(first.pause).toHaveBeenCalled();
+    expect(first.currentTime).toBe(0);
+    first.remove();
+    second.remove();
+  });
+
+  it("does not touch the element that is currently playing", async () => {
+    await renderShell();
+    const first = fakeMedia("video", 3);
+    fireEvent(first, new Event("play"));
+    expect(first.pause).not.toHaveBeenCalled();
+    expect(first.currentTime).toBe(3);
+    first.remove();
   });
 });
 

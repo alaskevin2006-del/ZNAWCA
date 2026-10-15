@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { supportedLocales, textDirection, translate } from "../../src/core/localization";
+import { supportedLocales, textDirection, translate } from "../../src/renderer/i18n/index";
 
 describe("localization", () => {
   it("ships all five required interface languages", () => {

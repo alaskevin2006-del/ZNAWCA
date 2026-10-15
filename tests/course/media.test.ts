@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
-import { scanCourseMedia } from "../../src/core/course/media.js";
+import { scanCourseMedia } from "../../src/main/course/media.js";
 
 const temporary: string[] = [];
 afterEach(async () => Promise.all(temporary.splice(0).map((directory) => rm(directory, { recursive: true, force: true }))));

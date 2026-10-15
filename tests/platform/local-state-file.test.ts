@@ -2,10 +2,25 @@ import { mkdtemp, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { describe, expect, it } from "vitest";
-import { defaultLocalState } from "../../src/core/persistence";
-import { readLocalState, writeLocalState } from "../../src/main/local-state-file";
+import { defaultLocalState } from "../../src/application/state/defaults.js";
+import { readLocalState, writeLocalState } from "../../src/main/storage/local-state-file";
 
 describe("desktop local state file", () => {
+  it("does not disguise an unreadable destination as an empty new profile", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "znawca-state-directory-"));
+    await expect(readLocalState(directory)).rejects.toThrow();
+  });
+  it("serializes concurrent saves to the same destination", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "znawca-concurrent-state-"));
+    const file = join(directory, "state.json");
+    const states = Array.from({ length: 12 }, (_, index) => {
+      const state = defaultLocalState();
+      state.settings.questionLimit = index + 1;
+      return state;
+    });
+    await Promise.all(states.map((state) => writeLocalState(file, state)));
+    expect(await readLocalState(file)).toEqual(states.at(-1));
+  });
   it("returns defaults when the file does not exist", async () => {
     expect(await readLocalState(join(tmpdir(), `missing-${Date.now()}.json`))).toEqual(defaultLocalState());
   });

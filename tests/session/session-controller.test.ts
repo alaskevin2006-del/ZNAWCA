@@ -5,7 +5,7 @@ import {
   LearningSessionController,
   TestingSessionController,
   type SessionIdentity,
-} from "../../src/core/session";
+} from "../../src/core/session/index";
 
 const questions: Question[] = [
   { id: "q1", objectId: "bird-1", kind: "input", direction: "name-to-property", prompt: "Food?", acceptedAnswers: ["seeds", "nuts"] },

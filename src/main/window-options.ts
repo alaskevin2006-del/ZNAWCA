@@ -1,10 +1,12 @@
 import path from "node:path";
 import type { BrowserWindowConstructorOptions } from "electron";
 
-export function createWindowOptions(appRoot: string): BrowserWindowConstructorOptions {
+// 尺寸由 main 进程按屏幕工作区注入（本函数保持纯函数，node 测试环境无 electron screen）。
+// 缺省 1280×800；下限 960×640 与 minWidth/minHeight 一致。
+export function createWindowOptions(appRoot: string, size?: { width: number; height: number }): BrowserWindowConstructorOptions {
   return {
-    width: 1280,
-    height: 800,
+    width: size?.width ?? 1280,
+    height: size?.height ?? 800,
     minWidth: 960,
     minHeight: 640,
     show: false,

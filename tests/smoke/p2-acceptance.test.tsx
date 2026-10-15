@@ -1,8 +1,8 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Course } from "../../src/core/course/types";
-import { defaultLocalState } from "../../src/core/persistence";
-import { AppShell } from "../../src/renderer/app-shell/AppShell";
+import { defaultLocalState } from "../../src/application/state/defaults.js";
+import { AppShell } from "../../src/renderer/app/AppShell";
 import { installSmokeCourse } from "./course-fixture";
 
 const savedCourse: Course = {
@@ -160,11 +160,11 @@ describe("P2 completion contract", () => {
     expect(window.confirm).toHaveBeenCalledWith(
       "Remove this course from Znawca? Files on disk will not be deleted.",
     );
-    expect(saveLocalState).toHaveBeenCalledWith(expect.objectContaining({
+    await waitFor(() => expect(saveLocalState).toHaveBeenCalledWith(expect.objectContaining({
       version: 7,
       courses: state.courses,
       settings: expect.objectContaining({ removedCourseIds: ["saved"] }),
-    }));
+    })));
   });
 
   it("keeps a removed course hidden after the saved library is rescanned", async () => {
@@ -196,14 +196,14 @@ describe("P2 completion contract", () => {
     fireEvent.click(screen.getByRole("button", { name: "10s" }));
     fireEvent.click(screen.getByRole("button", { name: /^Teaching style/ }));
     fireEvent.click(screen.getByRole("button", { name: /Lenient/ }));
-    expect(saveLocalState).toHaveBeenCalledWith(expect.objectContaining({
+    await waitFor(() => expect(saveLocalState).toHaveBeenCalledWith(expect.objectContaining({
       version: 7,
       settings: expect.objectContaining({
         mode: "testing",
         timerSeconds: 10,
         strictDistractors: false,
       }),
-    }));
+    })));
   });
 
   it("keeps the start action visible while opening only one setup section at a time", async () => {
@@ -292,7 +292,7 @@ describe("P2 completion contract", () => {
     expect(container.querySelector(".feedback-details")).not.toHaveTextContent("Missed");
   });
 
-  it("clears test history from the settings data controls after confirmation", () => {
+  it("clears test history from the settings data controls after confirmation", async () => {
     const state = defaultLocalState();
     state.testHistory = [{
       schemaVersion: 1,
@@ -310,7 +310,7 @@ describe("P2 completion contract", () => {
     render(<AppShell />);
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     fireEvent.click(screen.getByRole("button", { name: "Clear test history" }));
-    expect(saveLocalState).toHaveBeenCalledWith(expect.objectContaining({ testHistory: [] }));
+    await waitFor(() => expect(saveLocalState).toHaveBeenCalledWith(expect.objectContaining({ testHistory: [] })));
   });
 
   it("reviews the original test question, submitted answer and correct answer", async () => {

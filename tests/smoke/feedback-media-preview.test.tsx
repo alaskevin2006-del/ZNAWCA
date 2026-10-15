@@ -1,12 +1,13 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Course } from "../../src/core/course/types";
-import { defaultLocalState } from "../../src/core/persistence";
-import { AppShell } from "../../src/renderer/app-shell/AppShell";
+import { defaultLocalState } from "../../src/application/state/defaults.js";
+import { AppShell } from "../../src/renderer/app/AppShell";
 import { installSmokeCourse, smokeCourse } from "./course-fixture";
 
-// ZNAWCA-15 补充任务A 自动验收（WORKBUDDY-TASKS.md §6）：
-// 答错反馈区显示正确答案对应媒体的小图（AppShell 反馈区实现）。
+// 客户反馈（Cumulonimbus）：与题目无关的关联图片不应显示——
+// 非图片题的答错反馈区只显示正确答案文字，不再铺出该对象的全部图片；
+// 媒体答案题的反馈区只渲染答案自身涉及的媒体。
 
 const previewCourse: Course = {
   ...smokeCourse,
@@ -27,12 +28,12 @@ const allDirections = [
   "Name to video",
 ];
 
-describe("补充任务A: wrong-answer feedback shows the correct answer's media thumbnail", () => {
+describe("wrong-answer feedback does not show unrelated associated images", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("shows the correct object's image thumbnail next to the correct answer text", async () => {
+  it("shows only the correct answer text without the object's image collection", async () => {
     vi.spyOn(Math, "random").mockReturnValue(0);
     installSmokeCourse(defaultLocalState(), previewCourse);
     render(<AppShell />);
@@ -43,9 +44,9 @@ describe("补充任务A: wrong-answer feedback shows the correct answer's media 
     fireEvent.click(screen.getByRole("button", { name: "Check answer" }));
     expect(screen.getByText(/^Not quite$/)).toBeVisible();
     const feedback = document.querySelector<HTMLElement>(".feedback")!;
-    const thumbnails = within(feedback).getAllByRole("img");
-    expect(thumbnails).toHaveLength(1);
-    expect(thumbnails[0]!.getAttribute("src")).toContain("cuckoo.jpg");
+    // 文字题反馈区不得出现任何关联图片，即使该对象配有图片。
+    expect(within(feedback).queryByRole("img")).toBeNull();
+    expect(feedback.textContent).toContain("Cuculus canorus");
   });
 
   it("does not duplicate media controls for media-answer questions", async () => {
@@ -63,8 +64,7 @@ describe("补充任务A: wrong-answer feedback shows the correct answer's media 
     fireEvent.click(screen.getByRole("button", { name: /Begin learning/i }));
     const fieldset = screen.getByRole("group", { name: "Your answer" });
     const radios = within(fieldset).getAllByRole("radio");
-    // 选一个必然错误的选项：正确项的 img src 与任一错误项不同——用“选最后一个，
-    // 若恰好答对则重选第一个”的兜底不可靠；改为逐个尝试直到出现错误反馈。
+    // 选一个必然错误的选项：逐个尝试直到出现错误反馈。
     let submitted = false;
     for (const radio of [...radios].reverse()) {
       fireEvent.click(radio);
@@ -73,8 +73,7 @@ describe("补充任务A: wrong-answer feedback shows the correct answer's media 
       fireEvent.click(screen.getByRole("button", { name: "Next question" }));
     }
     expect(submitted).toBe(true);
-    // 反馈区渲染的媒体只有既有两处：正确答案媒体 + 「多答」的错误选项媒体；
-    // 对象小图预览对媒体答案题不生效（不叠加第三张）。
+    // 反馈区渲染的媒体只有既有两处：正确答案媒体 + 「多答」的错误选项媒体。
     const feedback = document.querySelector<HTMLElement>(".feedback")!;
     expect(within(feedback).getAllByRole("img")).toHaveLength(2);
   });

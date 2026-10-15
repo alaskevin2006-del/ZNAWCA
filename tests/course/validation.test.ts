@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateWorksheet } from "../../src/core/course/validation.js";
+import { validateWorksheet } from "../../src/main/course/validation.js";
 import type { WorksheetData } from "../../src/core/course/types.js";
 
 function worksheet(cells: WorksheetData["cells"]): WorksheetData {

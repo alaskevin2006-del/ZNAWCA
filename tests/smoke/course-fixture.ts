@@ -1,6 +1,7 @@
 import { vi } from "vitest";
 import type { Course } from "../../src/core/course/types";
-import { defaultLocalState, type LocalState } from "../../src/core/persistence";
+import { defaultLocalState } from "../../src/application/state/defaults.js";
+import { type LocalState } from "../../src/contracts/local-state.js";
 
 export const smokeCourse: Course = {
   id: "smoke-course",

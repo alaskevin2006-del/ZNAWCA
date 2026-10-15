@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
-import { scanFeedbackSounds, selectFeedbackSound } from "../../src/core/course/feedback-sounds.js";
+import { scanFeedbackSounds, selectFeedbackSound } from "../../src/main/course/feedback-sounds.js";
 import type { RandomSource } from "../../src/core/quiz/types.js";
 
 const temporary: string[] = [];

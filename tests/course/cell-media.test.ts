@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { cellMediaCategory, scanCellMedia } from "../../src/core/course/cell-media.js";
+import { cellMediaCategory, scanCellMedia } from "../../src/main/course/cell-media.js";
 
 describe("cellMediaCategory (syntax-level, D-17/D-18)", () => {
   it("classifies a single or multi-variant same-kind reference", () => {

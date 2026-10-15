@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { discoverCourses } from "../../src/core/course/loader.js";
+import { discoverCourses } from "../../src/main/course/loader.js";
 import { courseObjects } from "../../src/core/quiz/course-adapter.js";
 import { columnRole, bidirectionalStems } from "../../src/core/quiz/course-adapter.js";
 import { applyFilters } from "../../src/core/quiz/filter.js";

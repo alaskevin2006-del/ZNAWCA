@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { LocalState } from "../core/persistence/index.js";
-import type { ZnawcaDesktopApi } from "./contracts.js";
+import type { LocalState } from "../contracts/local-state.js";
+import type { ZnawcaDesktopApi } from "../contracts/desktop-api.js";
 
 // Sandboxed Electron preload scripts cannot load local runtime modules.
 // Keep the narrow channel list self-contained so this file compiles to one CJS entry.
@@ -11,7 +11,7 @@ const IPC_CHANNELS = {
   loadCourseFromLibrary: "course:load-from-library",
   loadLocalState: "state:load",
   saveLocalState: "state:save",
-} as const satisfies typeof import("./contracts.js").IPC_CHANNELS;
+} as const satisfies typeof import("../contracts/desktop-api.js").IPC_CHANNELS;
 
 const desktopApi: Readonly<ZnawcaDesktopApi> = Object.freeze({
   chooseCourse: () => ipcRenderer.invoke(IPC_CHANNELS.chooseCourse),

@@ -1,7 +1,7 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { waitFor, act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { AppShell } from "../../src/renderer/app-shell/AppShell";
-import { defaultLocalState } from "../../src/core/persistence";
+import { AppShell } from "../../src/renderer/app/AppShell";
+import { defaultLocalState } from "../../src/application/state/defaults.js";
 import { installSmokeCourse, markCourseMastered, smallSmokeCourse, smokeCourse } from "./course-fixture";
 
 describe("desktop session flow", () => {
@@ -35,7 +35,7 @@ describe("desktop session flow", () => {
     expect(screen.getByText(/Mastered/)).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Next question" }));
     expect(screen.getByText(/session complete/i)).toBeVisible();
-    expect(saveLocalState).toHaveBeenCalledWith(expect.objectContaining({
+    await waitFor(() => expect(saveLocalState).toHaveBeenCalledWith(expect.objectContaining({
       learningHistory: expect.arrayContaining([
         expect.objectContaining({
           courseId: smallSmokeCourse.id,
@@ -50,7 +50,7 @@ describe("desktop session flow", () => {
           ]),
         }),
       ]),
-    }));
+    })));
     fireEvent.click(screen.getByRole("button", { name: "Courses" }));
     fireEvent.click(screen.getByRole("button", { name: /Open course/ }));
     fireEvent.click(screen.getByRole("button", { name: /^Learning history 1/ }));
@@ -125,7 +125,7 @@ describe("desktop session flow", () => {
     fireEvent.click(screen.getByRole("button", { name: /Begin Learning/i }));
     fireEvent.click(screen.getByRole("button", { name: "Save and exit" }));
     expect(screen.getByText("Choose what to master")).toBeVisible();
-    expect(saveLocalState).toHaveBeenCalledWith(expect.objectContaining({
+    await waitFor(() => expect(saveLocalState).toHaveBeenCalledWith(expect.objectContaining({
       version: 7,
       learningSessions: expect.objectContaining({
         [smokeCourse.id]: expect.objectContaining({
@@ -133,7 +133,7 @@ describe("desktop session flow", () => {
           progress: expect.objectContaining({ queue: expect.any(Array) }),
         }),
       }),
-    }));
+    })));
     expect(screen.getByRole("button", { name: /Resume learning/i })).toBeEnabled();
   });
 
@@ -153,12 +153,12 @@ describe("desktop session flow", () => {
       fireEvent.click(screen.getByRole("button", { name: "Next question" }));
     }
     expect(await screen.findByRole("heading", { name: "Progress worth keeping." })).toBeVisible();
-    expect(saveLocalState).toHaveBeenCalledWith(expect.objectContaining({
+    await waitFor(() => expect(saveLocalState).toHaveBeenCalledWith(expect.objectContaining({
       version: 7,
       difficultyRecords: [
         { courseId: smallSmokeCourse.id, objectId: "cuckoo", consecutiveCorrect: 0 },
         { courseId: smallSmokeCourse.id, objectId: "skylark", consecutiveCorrect: 0 },
       ],
-    }));
+    })));
   });
 });

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { defaultLocalState } from "../../src/core/persistence";
-import { AppShell } from "../../src/renderer/app-shell/AppShell";
+import { defaultLocalState } from "../../src/application/state/defaults.js";
+import { AppShell } from "../../src/renderer/app/AppShell";
 import { installSmokeCourse, smokeCourse } from "./course-fixture";
 
 // ZNAWCA-15 S4 自动验收（WORKBUDDY-TASKS.md §6，D-24 第三条）：

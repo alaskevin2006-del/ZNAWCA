@@ -1,7 +1,7 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { waitFor, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { AppShell } from "../../src/renderer/app-shell/AppShell";
-import { defaultLocalState } from "../../src/core/persistence";
+import { AppShell } from "../../src/renderer/app/AppShell";
+import { defaultLocalState } from "../../src/application/state/defaults.js";
 import { smokeCourse } from "./course-fixture";
 
 describe("course import flow", () => {
@@ -80,10 +80,24 @@ describe("course import flow", () => {
     expect(await screen.findByText("Shape this session")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: /Begin learning/i }));
     expect(screen.getByText("0 / 8 mastered")).toBeVisible();
-    // 回到课程列表，警告可见且带可定位路径。
+    // 回到课程列表：warning 默认折叠为一条横幅，不倾倒整屏；展开后才逐条可见。
     fireEvent.click(screen.getByRole("button", { name: /Znawca/i }));
+    const toggle = await screen.findByRole("button", { name: /Course opened with warnings \(1\)/ });
+    expect(toggle).toBeVisible();
+    expect(screen.queryByText(/MEDIA_CORRUPT/)).toBeNull();
+    fireEvent.click(toggle);
     expect(await screen.findByText(/MEDIA_CORRUPT/)).toBeVisible();
     expect(screen.getByText(/C:\/Birds\/Common Cuckoo\/images\/adult\.jpg/)).toBeVisible();
+    // 消退机制：忽略后按指纹持久化并从视图移除，可一键恢复。
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByText(/MEDIA_CORRUPT/)).toBeNull();
+    await waitFor(() => {
+      const saved = vi.mocked(window.znawca!.saveLocalState!).mock.calls.at(-1)?.[0];
+      expect(saved?.settings.dismissedIssueKeys).toContain("MEDIA_CORRUPT|C:/Birds/Common Cuckoo/images/adult.jpg||||");
+    });
+    const restore = screen.getByRole("button", { name: /Dismissed: 1 · Restore/ });
+    fireEvent.click(restore);
+    expect(await screen.findByText(/MEDIA_CORRUPT/)).toBeVisible();
   });
 
   it("refreshes the saved library and discovers a newly added course", async () => {

@@ -1,4 +1,4 @@
-import type { ZnawcaDesktopApi } from "../preload/contracts";
+import type { ZnawcaDesktopApi } from "../contracts/desktop-api";
 
 declare global {
   interface Window {
